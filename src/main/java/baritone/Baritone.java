@@ -34,6 +34,7 @@ import baritone.utils.GuiClick;
 import baritone.utils.InputOverrideHandler;
 import baritone.utils.PathingControlManager;
 import baritone.utils.player.PrimaryPlayerContext;
+import baritone.altoclef.AltoClefSettings;
 import net.minecraft.client.Minecraft;
 
 import java.io.File;
