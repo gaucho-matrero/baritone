@@ -29,6 +29,10 @@ import net.minecraft.world.phys.Vec3;
 public final class RayTraceUtils {
 
     private RayTraceUtils() {}
+    
+    // Altoclef
+    public static ClipContext.Fluid fluidHandling = ClipContext.Fluid.NONE;
+
 
     /**
      * Performs a block raytrace with the specified rotations. This should only be used when
