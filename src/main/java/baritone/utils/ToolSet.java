@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.item.DiggerItem;
 import net.minecraft.world.item.ItemStack;
@@ -29,6 +30,7 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.Blocks;
 
 /**
  * A cached list of the best tools on the hotbar for any block
@@ -209,5 +211,10 @@ public class ToolSet {
             }
         }
         return speed;
+    }
+
+    // Altoclef
+    public static boolean areShearsEffective(Block b) {
+        return BlockTags.LEAVES.contains(b) || b == Blocks.COBWEB || b == Blocks.GRASS || b == Blocks.TALL_GRASS || b == Blocks.LILY_PAD || b == Blocks.FERN || b == Blocks.DEAD_BUSH || b ==Blocks.VINE || b == Blocks.TRIPWIRE || BlockTags.WOOL.contains(b);
     }
 }
