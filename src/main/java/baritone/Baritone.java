@@ -90,6 +90,9 @@ public class Baritone implements IBaritone {
 
     public BlockStateInterface bsi;
 
+    // Altoclef
+    private static AltoClefSettings _altoClefSettings;
+
     Baritone() {
         this.gameEventHandler = new GameEventHandler(this);
 
@@ -120,6 +123,9 @@ public class Baritone implements IBaritone {
         this.worldProvider = new WorldProvider();
         this.selectionManager = new SelectionManager(this);
         this.commandManager = new CommandManager(this);
+
+        // Altoclef
+        _altoClefSettings = new AltoClefSettings();
     }
 
     @Override
@@ -233,4 +239,7 @@ public class Baritone implements IBaritone {
     public static Executor getExecutor() {
         return threadPool;
     }
+
+    // Altoclef
+    public static AltoClefSettings getAltoClefSettings() { return _altoClefSettings; }
 }
