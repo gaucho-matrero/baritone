@@ -34,6 +34,8 @@ public final class RayTraceUtils {
     public static ClipContext.Fluid fluidHandling = ClipContext.Fluid.NONE;
 
 
+    public static ClipContext.Fluid fluidHandling = ClipContext.Fluid.NONE;
+
     /**
      * Performs a block raytrace with the specified rotations. This should only be used when
      * any entity collisions can be ignored, because this method will not recognize if an
@@ -61,7 +63,7 @@ public final class RayTraceUtils {
                 direction.y * blockReachDistance,
                 direction.z * blockReachDistance
         );
-        return entity.level.clip(new ClipContext(start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, entity));
+        return entity.level.clip(new ClipContext(start, end, ClipContext.Block.OUTLINE, fluidHandling, entity));
     }
 
     public static Vec3 inferSneakingEyePosition(Entity entity) {

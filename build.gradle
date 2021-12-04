@@ -181,28 +181,12 @@ task proguard(type: ProguardTask) {
 task createDist(type: CreateDistTask, dependsOn: proguard)
 
 
-build.finalizedBy(createDist)
-
 publishing {
     publications {
         maven(MavenPublication) {
-            artifact 'dist/baritone-api-fabric-' + version + '.jar'
-        }
-    }
-
-    repositories {
-        maven {
-            name = "meteor-maven"
-            url = "https://maven.meteordev.org/snapshots"
-
-            credentials {
-                username = System.getenv("MAVEN_METEOR_ALIAS")
-                password = System.getenv("MAVEN_METEOR_TOKEN")
-            }
-
-            authentication {
-                basic(BasicAuthentication)
-            }
+            artifact 'dist/baritone-api-fabric-1.7.0.jar'
         }
     }
 }
+
+build.finalizedBy(createDist)

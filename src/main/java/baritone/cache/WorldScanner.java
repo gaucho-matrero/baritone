@@ -27,6 +27,7 @@ import java.util.stream.IntStream;
 import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkSource;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -144,6 +145,8 @@ public enum WorldScanner implements IWorldScanner {
 
     private boolean scanChunkInto(int chunkX, int chunkZ, int minY, LevelChunk chunk, BlockOptionalMetaLookup filter, Collection<BlockPos> result, int max, int yLevelThreshold, int playerY, int[] coordinateIterationOrder) {
         LevelChunkSection[] chunkInternalStorageArray = chunk.getSections();
+        HashMap<Block, Integer> numberFound = new HashMap<>();
+        int maxReached = 0;
         boolean foundWithinY = false;
         for (int y0 : coordinateIterationOrder) {
             LevelChunkSection section = chunkInternalStorageArray[y0];
@@ -158,7 +161,8 @@ public enum WorldScanner implements IWorldScanner {
                         BlockState state = bsc.get(x, yy, z);
                         if (filter.has(state)) {
                             int y = yReal | yy;
-                            if (result.size() >= max) {
+                            // If we reached the limit EVERYWHERE, we're done.
+                            if (maxReached >= filter.blocks().size()) {
                                 if (Math.abs(y - playerY) < yLevelThreshold) {
                                     foundWithinY = true;
                                 } else {
@@ -169,7 +173,21 @@ public enum WorldScanner implements IWorldScanner {
                                     }
                                 }
                             }
-                            result.add(new BlockPos(chunkX | x, y + minY, chunkZ | z));
+                            // If we reached the limit on JUST this one, keep going.
+                            Block b = state.getBlock();
+                            if (numberFound.containsKey(b) && numberFound.get(b) >= max) {
+                                continue;
+                            }
+
+                            result.add(new BlockPos(chunkX | x, y, chunkZ | z));
+                            // Update number
+                            if (!numberFound.containsKey(b)) {
+                                numberFound.put(b, 0);
+                            }
+                            numberFound.put(b, numberFound.get(b) + 1);
+                            if (numberFound.get(b) >= max) {
+                                maxReached += 1;
+                            }
                         }
                     }
                 }

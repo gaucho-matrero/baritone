@@ -37,6 +37,7 @@ import baritone.utils.player.PrimaryPlayerContext;
 import baritone.altoclef.AltoClefSettings;
 import net.minecraft.client.Minecraft;
 
+import baritone.altoclef.AltoClefSettings;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -93,7 +94,6 @@ public class Baritone implements IBaritone {
 
     // Altoclef
     private static AltoClefSettings _altoClefSettings;
-
     Baritone() {
         this.gameEventHandler = new GameEventHandler(this);
 
