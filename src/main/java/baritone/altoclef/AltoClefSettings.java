@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
+// Altoclef
 public class AltoClefSettings {
 
     private final Object breakMutex = new Object();
