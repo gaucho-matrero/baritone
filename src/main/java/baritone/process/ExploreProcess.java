@@ -94,8 +94,8 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
 
         if (calcFailed) {
             logDirect("Failed");
-            if (Baritone.settings().desktopNotifications.value && Baritone.settings().notificationOnExploreFinished.value) {
-                NotificationHelper.notify("Exploration failed", true);
+            if (Baritone.settings().notificationOnExploreFinished.value) {
+                logNotification("Exploration failed", true);
             }
             onLostControl();
             return null;
@@ -103,8 +103,8 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
         IChunkFilter filter = calcFilter();
         if (!Baritone.settings().disableCompletionCheck.value && filter.countRemain() == 0) {
             logDirect("Explored all chunks");
-            if (Baritone.settings().desktopNotifications.value && Baritone.settings().notificationOnExploreFinished.value) {
-                NotificationHelper.notify("Explored all chunks", false);
+            if (Baritone.settings().notificationOnExploreFinished.value) {
+                logNotification("Explored all chunks", false);
             }
             onLostControl();
             return null;

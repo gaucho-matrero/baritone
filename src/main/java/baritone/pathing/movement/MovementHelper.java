@@ -46,6 +46,7 @@ import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import java.util.List;
 import java.util.Optional;
 
 import static baritone.pathing.movement.Movement.HORIZONTALS_BUT_ALSO_DOWN_____SO_EVERY_DIRECTION_EXCEPT_UP;
@@ -60,7 +61,8 @@ public interface MovementHelper extends ActionCosts, Helper {
     static boolean avoidBreaking(BlockStateInterface bsi, int x, int y, int z, BlockState state) {
         if (AltoClefSettings.getInstance().shouldAvoidBreaking(new BlockPos(x, y, z))) return true;
         Block b = state.getBlock();
-        return b == Blocks.ICE // ice becomes water, and water can mess up the path
+        return Baritone.settings().blocksToDisallowBreaking.value.contains(b)
+                || b == Blocks.ICE // ice becomes water, and water can mess up the path
                 || b instanceof InfestedBlock // obvious reasons
                 // call context.get directly with x,y,z. no need to make 5 new BlockPos for no reason
                 || avoidAdjacentBreaking(bsi, x, y + 1, z, true)
@@ -105,6 +107,9 @@ public interface MovementHelper extends ActionCosts, Helper {
         if (AltoClefSettings.getInstance().canSwimThroughLava() && block == Blocks.LAVA) {
             BlockState up = bsi.get0(x, y + 1, z);
             return up.getFluidState().isEmpty();
+        }
+        if (block == Blocks.BIG_DRIPLEAF) {
+            return false;
         }
         if (AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(x, y, z)) {
             return false;
@@ -192,6 +197,7 @@ public interface MovementHelper extends ActionCosts, Helper {
                 || block == Blocks.VINE
                 || block == Blocks.LADDER
                 || block == Blocks.COCOA
+                || block instanceof AzaleaBlock
                 || block instanceof DoorBlock
                 || block instanceof FenceGateBlock
                 || block instanceof SnowLayerBlock
@@ -323,6 +329,9 @@ public interface MovementHelper extends ActionCosts, Helper {
             return false;
         }
         if (isBlockNormalCube(state)) {
+            return true;
+        }
+        if (block instanceof AzaleaBlock) {
             return true;
         }
         if (block == Blocks.LADDER || (block == Blocks.VINE && Baritone.settings().allowVines.value)) { // TODO reconsider this
@@ -467,7 +476,7 @@ public interface MovementHelper extends ActionCosts, Helper {
      */
     static void switchToBestToolFor(IPlayerContext ctx, BlockState b, ToolSet ts, boolean preferSilkTouch) {
         if (AltoClefSettings.getInstance().isInteractionPaused()) return;
-        if (!Baritone.settings().disableAutoTool.value && !Baritone.settings().assumeExternalAutoTool.value) {
+        if (Baritone.settings().autoTool.value && !Baritone.settings().assumeExternalAutoTool.value) {
             ctx.player().getInventory().selected = ts.getBestSlot(b.getBlock(), preferSilkTouch);
         }
     }
@@ -561,7 +570,12 @@ public interface MovementHelper extends ActionCosts, Helper {
                 || block instanceof AmethystClusterBlock) {
             return false;
         }
-        return Block.isShapeFullBlock(state.getCollisionShape(null, null));
+        try {
+            return Block.isShapeFullBlock(state.getCollisionShape(null, null));
+        } catch (Exception ignored) {
+            // if we can't get the collision shape, assume it's bad and add to blocksToAvoid
+        }
+        return false;
     }
 
     static PlaceResult attemptToPlaceABlock(MovementState state, IBaritone baritone, BlockPos placeAt, boolean preferDown, boolean wouldSneak) {

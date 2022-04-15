@@ -37,6 +37,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 public final class GetToBlockProcess extends BaritoneProcessHelper implements IGetToBlockProcess {
     private BlockOptionalMeta gettingTo;
@@ -58,7 +59,7 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
         start = ctx.playerFeet();
         blacklist = new ArrayList<>();
         arrivalTickCount = 0;
-        rescan(new ArrayList<>(), new CalculationContext(baritone));
+        rescan(new ArrayList<>(), new GetToBlockCalculationContext(false));
     }
 
     @Override
@@ -73,7 +74,7 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
         }
 
         if (knownLocations == null) {
-            rescan(new ArrayList<>(), new CalculationContext(baritone));
+            rescan(new ArrayList<>(), new GetToBlockCalculationContext(false));
         }
         if (knownLocations.isEmpty()) {
             if (Baritone.settings().exploreForBlocks.value && !calcFailed) {
@@ -81,6 +82,11 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
                     @Override
                     public boolean isInGoal(int x, int y, int z) {
                         return false;
+                    }
+
+                    @Override
+                    public double heuristic() {
+                        return Double.NEGATIVE_INFINITY;
                     }
                 }, PathingCommandType.FORCE_REVALIDATE_GOAL_AND_PATH);
             }
@@ -107,7 +113,7 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
         int mineGoalUpdateInterval = Baritone.settings().mineGoalUpdateInterval.value;
         if (mineGoalUpdateInterval != 0 && tickCount++ % mineGoalUpdateInterval == 0) { // big brain
             List<BlockPos> current = new ArrayList<>(knownLocations);
-            CalculationContext context = new CalculationContext(baritone, true);
+            CalculationContext context = new GetToBlockCalculationContext(true);
             Baritone.getExecutor().execute(() -> rescan(current, context));
         }
         if (goal.isInGoal(ctx.playerFeet()) && goal.isInGoal(baritone.getPathingBehavior().pathStart()) && isSafeToCancel) {
@@ -150,6 +156,20 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
         logDebug("Blacklisting unreachable locations " + newBlacklist);
         blacklist.addAll(newBlacklist);
         return !newBlacklist.isEmpty();
+    }
+
+    // this is to signal to MineProcess that we don't care about the allowBreak setting
+    // it is NOT to be used to actually calculate a path
+    public class GetToBlockCalculationContext extends CalculationContext {
+
+        public GetToBlockCalculationContext(boolean forUseOnAnotherThread) {
+            super(GetToBlockProcess.super.baritone, forUseOnAnotherThread);
+        }
+
+        @Override
+        public double breakCostMultiplierAt(int x, int y, int z, BlockState current) {
+            return 1;
+        }
     }
 
     // safer than direct double comparison from distanceSq
@@ -227,7 +247,7 @@ public final class GetToBlockProcess extends BaritoneProcessHelper implements IG
         if (!Baritone.settings().rightClickContainerOnArrival.value) {
             return false;
         }
-        return block == Blocks.CRAFTING_TABLE || block == Blocks.FURNACE || block == Blocks.ENDER_CHEST || block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST;
+        return block == Blocks.CRAFTING_TABLE || block == Blocks.FURNACE || block == Blocks.BLAST_FURNACE || block == Blocks.ENDER_CHEST || block == Blocks.CHEST || block == Blocks.TRAPPED_CHEST;
     }
 
     private boolean blockOnTopMustBeRemoved(Block block) {
