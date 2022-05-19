@@ -30,7 +30,6 @@ import baritone.api.process.PathingCommandType;
 import baritone.api.utils.MyChunkPos;
 import baritone.cache.CachedWorld;
 import baritone.utils.BaritoneProcessHelper;
-import baritone.utils.NotificationHelper;
 import baritone.utils.Trail;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
