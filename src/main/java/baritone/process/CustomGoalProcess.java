@@ -23,7 +23,6 @@ import baritone.api.process.ICustomGoalProcess;
 import baritone.api.process.PathingCommand;
 import baritone.api.process.PathingCommandType;
 import baritone.utils.BaritoneProcessHelper;
-import baritone.utils.NotificationHelper;
 import baritone.utils.Trail;
 
 /**
