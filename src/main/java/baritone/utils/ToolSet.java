@@ -26,15 +26,19 @@ import baritone.altoclef.AltoClefSettings;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.item.DiggerItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.TieredItem;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * A cached list of the best tools on the hotbar for any block
@@ -80,13 +84,20 @@ public class ToolSet {
     }
 
     /**
-     * Evaluate the material cost of a possible tool. Will return 1 for tools, -1 for other
+     * Evaluate the material cost of a possible tool. The priority matches the
+     * harvest level order; there is a chance for multiple at the same with modded tools
+     * but in that case we don't really care.
      *
      * @param itemStack a possibly empty ItemStack
-     * @return Either 1 or -1
+     * @return values from 0 up
      */
     private int getMaterialCost(ItemStack itemStack) {
-        return itemStack.getItem() instanceof DiggerItem ? 1 : -1;
+        if (itemStack.getItem() instanceof TieredItem) {
+            TieredItem tool = (TieredItem) itemStack.getItem();
+            return tool.getTier().getLevel();
+        } else {
+            return -1;
+        }
     }
 
     public boolean hasSilkTouch(ItemStack stack) {

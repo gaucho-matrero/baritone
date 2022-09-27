@@ -70,6 +70,7 @@ public class Baritone implements IBaritone {
     private PathingBehavior pathingBehavior;
     private LookBehavior lookBehavior;
     private InventoryBehavior inventoryBehavior;
+    private WaypointBehavior waypointBehavior;
     private InputOverrideHandler inputOverrideHandler;
 
     private FollowProcess followProcess;
@@ -102,6 +103,7 @@ public class Baritone implements IBaritone {
             lookBehavior = new LookBehavior(this);
             inventoryBehavior = new InventoryBehavior(this);
             inputOverrideHandler = new InputOverrideHandler(this);
+            waypointBehavior = new WaypointBehavior(this);
         }
 
         this.pathingControlManager = new PathingControlManager(this);

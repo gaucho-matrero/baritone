@@ -60,6 +60,9 @@ public interface MovementHelper extends ActionCosts, Helper {
 
     static boolean avoidBreaking(BlockStateInterface bsi, int x, int y, int z, BlockState state) {
         if (AltoClefSettings.getInstance().shouldAvoidBreaking(new BlockPos(x, y, z))) return true;
+        if (!bsi.worldBorder.canPlaceAt(x, y)) {
+            return true;
+        }
         Block b = state.getBlock();
         return Baritone.settings().blocksToDisallowBreaking.value.contains(b)
                 || b == Blocks.ICE // ice becomes water, and water can mess up the path
@@ -101,7 +104,7 @@ public interface MovementHelper extends ActionCosts, Helper {
         if (block instanceof AirBlock) { // early return for most common case
             return true;
         }
-        if (block instanceof BaseFireBlock || block == Blocks.TRIPWIRE || block == Blocks.COBWEB || block == Blocks.END_PORTAL || block == Blocks.COCOA || block instanceof AbstractSkullBlock || block == Blocks.BUBBLE_COLUMN || block instanceof ShulkerBoxBlock || block instanceof SlabBlock || block instanceof TrapDoorBlock || block == Blocks.HONEY_BLOCK || block == Blocks.END_ROD || block == Blocks.POINTED_DRIPSTONE || block == Blocks.AMETHYST_CLUSTER || block == Blocks.SWEET_BERRY_BUSH) {
+        if (block instanceof BaseFireBlock || block == Blocks.TRIPWIRE || block == Blocks.COBWEB || block == Blocks.END_PORTAL || block == Blocks.COCOA || block instanceof AbstractSkullBlock || block == Blocks.BUBBLE_COLUMN || block instanceof ShulkerBoxBlock || block instanceof SlabBlock || block instanceof TrapDoorBlock || block == Blocks.HONEY_BLOCK || block == Blocks.END_ROD || block == Blocks.SWEET_BERRY_BUSH || block == Blocks.POINTED_DRIPSTONE || block instanceof AmethystClusterBlock || block instanceof AzaleaBlock) {
             return false;
         }
         if (AltoClefSettings.getInstance().canSwimThroughLava() && block == Blocks.LAVA) {
@@ -109,6 +112,9 @@ public interface MovementHelper extends ActionCosts, Helper {
             return up.getFluidState().isEmpty();
         }
         if (block == Blocks.BIG_DRIPLEAF) {
+            return false;
+        }
+        if (block == Blocks.POWDER_SNOW) {
             return false;
         }
         if (AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(x, y, z)) {
@@ -156,6 +162,9 @@ public interface MovementHelper extends ActionCosts, Helper {
                 return false;
             }
             return true;
+        }
+        if (block instanceof CauldronBlock) {
+            return false;
         }
         // every block that overrides isPassable with anything more complicated than a "return true;" or "return false;"
         // has already been accounted for above
@@ -300,6 +309,7 @@ public interface MovementHelper extends ActionCosts, Helper {
         return !state.getFluidState().isEmpty()
                 || block == Blocks.MAGMA_BLOCK
                 || block == Blocks.CACTUS
+                || block == Blocks.SWEET_BERRY_BUSH
                 || block instanceof BaseFireBlock
                 || block == Blocks.END_PORTAL
                 || block == Blocks.COBWEB
@@ -407,6 +417,9 @@ public interface MovementHelper extends ActionCosts, Helper {
     }
 
     static boolean canPlaceAgainst(BlockStateInterface bsi, int x, int y, int z, BlockState state) {
+        if (!bsi.worldBorder.canPlaceAt(x, z)) {
+            return false;
+        }
         if (AltoClefSettings.getInstance().shouldAvoidPlacingAt(x, y, z)) return false;
         // can we look at the center of a side face of this block and likely be able to place?
         // (thats how this check is used)

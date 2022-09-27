@@ -35,6 +35,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static baritone.api.pathing.movement.ActionCosts.COST_INF;
 
 /**
@@ -56,6 +59,7 @@ public class CalculationContext {
     public final boolean canSprint;
     protected final double placeBlockCost; // protected because you should call the function instead
     public final boolean allowBreak;
+    public final List<Block> allowBreakAnyway;
     public final boolean allowParkour;
     public final boolean allowParkourPlace;
     public final boolean allowJumpAt256;
@@ -90,6 +94,7 @@ public class CalculationContext {
         this.canSprint = Baritone.settings().allowSprint.value && player.getFoodData().getFoodLevel() > 6;
         this.placeBlockCost = Baritone.settings().blockPlacementPenalty.value;
         this.allowBreak = !AltoClefSettings.getInstance().isInteractionPaused() && Baritone.settings().allowBreak.value;
+        this.allowBreakAnyway = new ArrayList<>(Baritone.settings().allowBreakAnyway.value);
         this.allowParkour = Baritone.settings().allowParkour.value;
         this.allowParkourPlace = Baritone.settings().allowParkourPlace.value;
         this.allowJumpAt256 = Baritone.settings().allowJumpAt256.value;
@@ -144,7 +149,6 @@ public class CalculationContext {
             return COST_INF;
         }
         if (!worldBorder.canPlaceAt(x, z)) {
-            // TODO perhaps MovementHelper.canPlaceAgainst could also use this?
             return COST_INF;
         }
         if (AltoClefSettings.getInstance().shouldAvoidPlacingAt(x, y, z)) {
@@ -154,7 +158,7 @@ public class CalculationContext {
     }
 
     public double breakCostMultiplierAt(int x, int y, int z, BlockState current) {
-        if (!allowBreak) {
+        if (!allowBreak && !allowBreakAnyway.contains(current.getBlock())) {
             return COST_INF;
         }
         if (isPossiblyProtected(x, y, z)) {
