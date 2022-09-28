@@ -141,6 +141,7 @@ public final class BuilderProcess extends BaritoneProcessHelper implements IBuil
         this.layer = Baritone.settings().startAtLayer.value;
         this.numRepeats = 0;
         this.observedCompleted = new LongOpenHashSet();
+        this.incorrectPositions = null;
         this.active = true;
 
         //stopProtectItemOfMissing();
@@ -1238,21 +1239,20 @@ public final class BuilderProcess extends BaritoneProcessHelper implements IBuil
                 result.add(Blocks.AIR.defaultBlockState());
                 continue;
             }
-            //if (stack.getItem().toString() != "air") System.out.println("BARIT2: " + stack.getItem().toString());
-            /*final Vec3 playerPos = new Vec3(ctx.player().position().x, ctx.player().position().y, ctx.player().position().z);
-            final BlockHitResult playerFeetHitResult = new BlockHitResult(playerPos, Direction.UP, ctx.playerFeet(), false);
-            final UseOnContext usageMainHandAction = new UseOnContext(ctx.world(), ctx.player(), InteractionHand.MAIN_HAND, stack, playerFeetHitResult) {};
-            final BlockPlaceContext blockPlacementContext = new BlockPlaceContext(usageMainHandAction);
-            final Block targetBlock = ((BlockItem) stack.getItem()).getBlock();
-            final BlockState targetState = targetBlock.getStateForPlacement(blockPlacementContext);*/
-
-            final Block targetBlock = ((BlockItem) stack.getItem()).getBlock();
-            final BlockState targetState = targetBlock.getStateDefinition().getPossibleStates().get(0);
-
-
-            //if (stack.getItem().toString() != "air") System.out.println("BARIT3: " + targetState);
-            result.add(targetState);
-            //result.add(((BlockItem) stack.getItem()).getBlock().getStateForPlacement(new BlockPlaceContext(new UseOnContext(ctx.world(), ctx.player(), InteractionHand.MAIN_HAND, stack, new BlockHitResult(new Vec3(ctx.player().position().x, ctx.player().position().y, ctx.player().position().z), Direction.UP, ctx.playerFeet(), false)) {})));
+            // <toxic cloud>
+            BlockState itemState = ((BlockItem) stack.getItem())
+                .getBlock()
+                .getStateForPlacement(
+                    new BlockPlaceContext(
+                        new UseOnContext(ctx.world(), ctx.player(), InteractionHand.MAIN_HAND, stack, new BlockHitResult(new Vec3(ctx.player().position().x, ctx.player().position().y, ctx.player().position().z), Direction.UP, ctx.playerFeet(), false)) {}
+                    )
+                );
+            if (itemState != null) {
+                result.add(itemState);
+            } else {
+                result.add(Blocks.AIR.defaultBlockState());
+            }
+            // </toxic cloud>
         }
         return result;
     }
@@ -1388,12 +1388,12 @@ public final class BuilderProcess extends BaritoneProcessHelper implements IBuil
 
         @Override
         public double breakCostMultiplierAt(int x, int y, int z, BlockState current) {
-            if (!allowBreak || isPossiblyProtected(x, y, z)) {
+            if ((!allowBreak && !allowBreakAnyway.contains(current.getBlock())) || isPossiblyProtected(x, y, z)) {
                 return COST_INF;
             }
             BlockState sch = getSchematic(x, y, z, current);
             if (sch != null && !Baritone.settings().buildSkipBlocks.value.contains(sch.getBlock())) {
-                if (sch.getBlock() == Blocks.AIR) {
+                if (sch.getBlock() instanceof AirBlock) {
                     // it should be air
                     // regardless of current contents, we can break it
                     return 1;
