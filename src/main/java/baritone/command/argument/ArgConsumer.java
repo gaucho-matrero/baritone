@@ -17,6 +17,7 @@
 
 package baritone.command.argument;
 
+import baritone.Baritone;
 import baritone.api.IBaritone;
 import baritone.api.command.argument.IArgConsumer;
 import baritone.api.command.argument.ICommandArgument;
@@ -316,6 +317,9 @@ public class ArgConsumer implements IArgConsumer {
         try {
             return datatype.apply(this.context, original);
         } catch (Exception e) {
+            if (Baritone.settings().verboseCommandExceptions.value) {
+                e.printStackTrace();
+            }
             throw new CommandInvalidTypeException(hasAny() ? peek() : consumed(), datatype.getClass().getSimpleName(), e);
         }
     }
@@ -345,6 +349,9 @@ public class ArgConsumer implements IArgConsumer {
         try {
             return datatype.get(this.context);
         } catch (Exception e) {
+            if (Baritone.settings().verboseCommandExceptions.value) {
+                e.printStackTrace();
+            }
             throw new CommandInvalidTypeException(hasAny() ? peek() : consumed(), datatype.getClass().getSimpleName(), e);
         }
     }

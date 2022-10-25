@@ -18,7 +18,7 @@
 package baritone.api.schematic;
 
 import baritone.api.utils.BlockOptionalMetaLookup;
-import net.minecraft.block.state.IBlockState;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class ReplaceSchematic extends MaskSchematic {
 
@@ -44,7 +44,7 @@ public class ReplaceSchematic extends MaskSchematic {
     }
 
     @Override
-    protected boolean partOfMask(int x, int y, int z, IBlockState currentState) {
+    protected boolean partOfMask(int x, int y, int z, BlockState currentState) {
         if (cache[x][y][z] == null) {
             cache[x][y][z] = filter.has(currentState);
         }

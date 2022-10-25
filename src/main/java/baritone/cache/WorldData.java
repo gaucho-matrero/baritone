@@ -19,12 +19,13 @@ package baritone.cache;
 
 import baritone.Baritone;
 import baritone.api.cache.ICachedWorld;
-import baritone.api.cache.IContainerMemory;
 import baritone.api.cache.IWaypointCollection;
 import baritone.api.cache.IWorldData;
-
 import java.io.IOException;
 import java.nio.file.Path;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.dimension.DimensionType;
 
 /**
  * Data about a world, from baritone's point of view. Includes cached chunks, waypoints, and map data.
@@ -35,16 +36,14 @@ public class WorldData implements IWorldData {
 
     public final CachedWorld cache;
     private final WaypointCollection waypoints;
-    private final ContainerMemory containerMemory;
     //public final MapData map;
     public final Path directory;
-    public final int dimension;
+    public final DimensionType dimension;
 
-    WorldData(Path directory, int dimension) {
+    WorldData(Path directory, DimensionType dimension) {
         this.directory = directory;
         this.cache = new CachedWorld(directory.resolve("cache"), dimension);
         this.waypoints = new WaypointCollection(directory.resolve("waypoints"));
-        this.containerMemory = new ContainerMemory(directory.resolve("containers"));
         this.dimension = dimension;
     }
 
@@ -52,15 +51,6 @@ public class WorldData implements IWorldData {
         Baritone.getExecutor().execute(() -> {
             System.out.println("Started saving the world in a new thread");
             cache.save();
-        });
-        Baritone.getExecutor().execute(() -> {
-            System.out.println("Started saving saved containers in a new thread");
-            try {
-                containerMemory.save();
-            } catch (IOException e) {
-                e.printStackTrace();
-                System.out.println("Failed to save saved containers");
-            }
         });
     }
 
@@ -72,10 +62,5 @@ public class WorldData implements IWorldData {
     @Override
     public IWaypointCollection getWaypoints() {
         return this.waypoints;
-    }
-
-    @Override
-    public IContainerMemory getContainerMemory() {
-        return this.containerMemory;
     }
 }

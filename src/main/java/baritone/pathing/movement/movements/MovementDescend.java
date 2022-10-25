@@ -30,22 +30,21 @@ import baritone.pathing.movement.MovementState;
 import baritone.utils.BlockStateInterface;
 import baritone.utils.pathing.MutableMoveResult;
 import com.google.common.collect.ImmutableSet;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockFalling;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.Set;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.FallingBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class MovementDescend extends Movement {
 
     private int numTicks = 0;
 
     public MovementDescend(IBaritone baritone, BetterBlockPos start, BetterBlockPos end) {
-        super(baritone, start, end, new BetterBlockPos[]{end.up(2), end.up(), end}, end.down());
+        super(baritone, start, end, new BetterBlockPos[]{end.above(2), end.above(), end}, end.below());
     }
 
     @Override
@@ -66,12 +65,12 @@ public class MovementDescend extends Movement {
 
     @Override
     protected Set<BetterBlockPos> calculateValidPositions() {
-        return ImmutableSet.of(src, dest.up(), dest);
+        return ImmutableSet.of(src, dest.above(), dest);
     }
 
     public static void cost(CalculationContext context, int x, int y, int z, int destX, int destZ, MutableMoveResult res) {
         double totalCost = 0;
-        IBlockState destDown = context.get(destX, y - 1, destZ);
+        BlockState destDown = context.get(destX, y - 1, destZ);
         totalCost += MovementHelper.getMiningDurationTicks(context, destX, y - 1, destZ, destDown, false);
         if (totalCost >= COST_INF) {
             return;
@@ -100,7 +99,7 @@ public class MovementDescend extends Movement {
         //A is plausibly breakable by either descend or fall
         //C, D, etc determine the length of the fall
 
-        IBlockState below = context.get(destX, y - 2, destZ);
+        BlockState below = context.get(destX, y - 2, destZ);
         if (!MovementHelper.canWalkOn(context.bsi, destX, y - 2, destZ, below)) {
             dynamicFallCost(context, x, y, z, destX, destZ, totalCost, below, res);
             return;
@@ -123,8 +122,8 @@ public class MovementDescend extends Movement {
         res.cost = totalCost;
     }
 
-    public static boolean dynamicFallCost(CalculationContext context, int x, int y, int z, int destX, int destZ, double frontBreak, IBlockState below, MutableMoveResult res) {
-        if (frontBreak != 0 && context.get(destX, y + 2, destZ).getBlock() instanceof BlockFalling) {
+    public static boolean dynamicFallCost(CalculationContext context, int x, int y, int z, int destX, int destZ, double frontBreak, BlockState below, MutableMoveResult res) {
+        if (frontBreak != 0 && context.get(destX, y + 2, destZ).getBlock() instanceof FallingBlock) {
             // if frontBreak is 0 we can actually get through this without updating the falling block and making it actually fall
             // but if frontBreak is nonzero, we're breaking blocks in front, so don't let anything fall through this column,
             // and potentially replace the water we're going to fall into
@@ -142,10 +141,10 @@ public class MovementDescend extends Movement {
                 // this check prevents it from getting the block at y=-1 and crashing
                 return false;
             }
-            IBlockState ontoBlock = context.get(destX, newY, destZ);
+            BlockState ontoBlock = context.get(destX, newY, destZ);
             int unprotectedFallHeight = fallHeight - (y - effectiveStartHeight); // equal to fallHeight - y + effectiveFallHeight, which is equal to -newY + effectiveFallHeight, which is equal to effectiveFallHeight - newY
             double tentativeCost = WALK_OFF_BLOCK_COST + FALL_N_BLOCKS_COST[unprotectedFallHeight] + frontBreak + costSoFar;
-            if (MovementHelper.isWater(ontoBlock.getBlock())) {
+            if (MovementHelper.isWater(ontoBlock)) {
                 if (!MovementHelper.canWalkThrough(context.bsi, destX, newY, destZ, ontoBlock)) {
                     return false;
                 }
@@ -212,30 +211,30 @@ public class MovementDescend extends Movement {
 
         BlockPos playerFeet = ctx.playerFeet();
         BlockPos fakeDest = new BlockPos(dest.getX() * 2 - src.getX(), dest.getY(), dest.getZ() * 2 - src.getZ());
-        if ((playerFeet.equals(dest) || playerFeet.equals(fakeDest)) && (MovementHelper.isLiquid(ctx, dest) || ctx.player().posY - dest.getY() < 0.5)) { // lilypads
+        if ((playerFeet.equals(dest) || playerFeet.equals(fakeDest)) && (MovementHelper.isLiquid(ctx, dest) || ctx.player().position().y - dest.getY() < 0.5)) { // lilypads
             // Wait until we're actually on the ground before saying we're done because sometimes we continue to fall if the next action starts immediately
             return state.setStatus(MovementStatus.SUCCESS);
             /* else {
-                // System.out.println(player().posY + " " + playerFeet.getY() + " " + (player().posY - playerFeet.getY()));
+                // System.out.println(player().position().y + " " + playerFeet.getY() + " " + (player().position().y - playerFeet.getY()));
             }*/
         }
         if (safeMode()) {
             double destX = (src.getX() + 0.5) * 0.17 + (dest.getX() + 0.5) * 0.83;
             double destZ = (src.getZ() + 0.5) * 0.17 + (dest.getZ() + 0.5) * 0.83;
-            EntityPlayerSP player = ctx.player();
+            LocalPlayer player = ctx.player();
             state.setTarget(new MovementState.MovementTarget(
                     new Rotation(RotationUtils.calcRotationFromVec3d(ctx.playerHead(),
-                            new Vec3d(destX, dest.getY(), destZ),
-                            new Rotation(player.rotationYaw, player.rotationPitch)).getYaw(), player.rotationPitch),
+                            new Vec3(destX, dest.getY(), destZ),
+                            new Rotation(player.getYRot(), player.getXRot())).getYaw(), player.getXRot()),
                     false
             )).setInput(Input.MOVE_FORWARD, true);
             return state;
         }
-        double diffX = ctx.player().posX - (dest.getX() + 0.5);
-        double diffZ = ctx.player().posZ - (dest.getZ() + 0.5);
+        double diffX = ctx.player().position().x - (dest.getX() + 0.5);
+        double diffZ = ctx.player().position().z - (dest.getZ() + 0.5);
         double ab = Math.sqrt(diffX * diffX + diffZ * diffZ);
-        double x = ctx.player().posX - (src.getX() + 0.5);
-        double z = ctx.player().posZ - (src.getZ() + 0.5);
+        double x = ctx.player().position().x - (src.getX() + 0.5);
+        double z = ctx.player().position().z - (src.getZ() + 0.5);
         double fromStart = Math.sqrt(x * x + z * z);
         if (!playerFeet.equals(dest) || ab > 0.25) {
             if (numTicks++ < 20 && fromStart < 1.25) {
@@ -250,13 +249,13 @@ public class MovementDescend extends Movement {
     public boolean safeMode() {
         // (dest - src) + dest is offset 1 more in the same direction
         // so it's the block we'd need to worry about running into if we decide to sprint straight through this descend
-        BlockPos into = dest.subtract(src.down()).add(dest);
+        BlockPos into = dest.subtract(src.below()).offset(dest);
         if (skipToAscend()) {
             // if dest extends into can't walk through, but the two above are can walk through, then we can overshoot and glitch in that weird way
             return true;
         }
         for (int y = 0; y <= 2; y++) { // we could hit any of the three blocks
-            if (MovementHelper.avoidWalkingInto(BlockStateInterface.getBlock(ctx, into.up(y)))) {
+            if (MovementHelper.avoidWalkingInto(BlockStateInterface.get(ctx, into.above(y)))) {
                 return true;
             }
         }
@@ -264,7 +263,7 @@ public class MovementDescend extends Movement {
     }
 
     public boolean skipToAscend() {
-        BlockPos into = dest.subtract(src.down()).add(dest);
-        return !MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into)) && MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into).up()) && MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into).up(2));
+        BlockPos into = dest.subtract(src.below()).offset(dest);
+        return !MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into)) && MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into).above()) && MovementHelper.canWalkThrough(ctx, new BetterBlockPos(into).above(2));
     }
 }
