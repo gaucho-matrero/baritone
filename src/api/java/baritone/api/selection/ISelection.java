@@ -18,9 +18,9 @@
 package baritone.api.selection;
 
 import baritone.api.utils.BetterBlockPos;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.phys.AABB;
 
 /**
  * A selection is an immutable object representing the current selection. The selection is commonly used for certain
@@ -54,9 +54,9 @@ public interface ISelection {
     Vec3i size();
 
     /**
-     * @return An {@link AxisAlignedBB} encompassing all blocks in this selection.
+     * @return An {@link AABB} encompassing all blocks in this selection.
      */
-    AxisAlignedBB aabb();
+    AABB aabb();
 
     /**
      * Returns a new {@link ISelection} expanded in the specified direction by the specified number of blocks.
@@ -65,7 +65,7 @@ public interface ISelection {
      * @param blocks    How many blocks to expand it.
      * @return A new selection, expanded as specified.
      */
-    ISelection expand(EnumFacing direction, int blocks);
+    ISelection expand(Direction direction, int blocks);
 
     /**
      * Returns a new {@link ISelection} contracted in the specified direction by the specified number of blocks.
@@ -77,7 +77,7 @@ public interface ISelection {
      * @param blocks    How many blocks to contract it.
      * @return A new selection, contracted as specified.
      */
-    ISelection contract(EnumFacing direction, int blocks);
+    ISelection contract(Direction direction, int blocks);
 
     /**
      * Returns a new {@link ISelection} shifted in the specified direction by the specified number of blocks. This moves
@@ -87,5 +87,5 @@ public interface ISelection {
      * @param blocks    How many blocks to shift it.
      * @return A new selection, shifted as specified.
      */
-    ISelection shift(EnumFacing direction, int blocks);
+    ISelection shift(Direction direction, int blocks);
 }

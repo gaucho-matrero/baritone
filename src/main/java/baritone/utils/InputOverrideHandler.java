@@ -18,14 +18,14 @@
 package baritone.utils;
 
 import baritone.Baritone;
+import baritone.altoclef.AltoClefSettings;
 import baritone.api.BaritoneAPI;
 import baritone.api.event.events.TickEvent;
 import baritone.api.utils.IInputOverrideHandler;
 import baritone.api.utils.input.Input;
 import baritone.behavior.Behavior;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.MovementInputFromOptions;
-
+import net.minecraft.client.player.KeyboardInput;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -88,6 +88,10 @@ public final class InputOverrideHandler extends Behavior implements IInputOverri
         if (event.getType() == TickEvent.Type.OUT) {
             return;
         }
+        if (AltoClefSettings.getInstance().isInteractionPaused()) {
+            setInputForceState(Input.CLICK_LEFT, false);
+            setInputForceState(Input.CLICK_RIGHT, false);
+        }
         if (isInputForcedDown(Input.CLICK_LEFT)) {
             setInputForceState(Input.CLICK_RIGHT, false);
         }
@@ -95,12 +99,12 @@ public final class InputOverrideHandler extends Behavior implements IInputOverri
         blockPlaceHelper.tick(isInputForcedDown(Input.CLICK_RIGHT));
 
         if (inControl()) {
-            if (ctx.player().movementInput.getClass() != PlayerMovementInput.class) {
-                ctx.player().movementInput = new PlayerMovementInput(this);
+            if (ctx.player().input.getClass() != PlayerMovementInput.class) {
+                ctx.player().input = new PlayerMovementInput(this);
             }
         } else {
-            if (ctx.player().movementInput.getClass() == PlayerMovementInput.class) { // allow other movement inputs that aren't this one, e.g. for a freecam
-                ctx.player().movementInput = new MovementInputFromOptions(Minecraft.getMinecraft().gameSettings);
+            if (ctx.player().input.getClass() == PlayerMovementInput.class) { // allow other movement inputs that aren't this one, e.g. for a freecam
+                ctx.player().input = new KeyboardInput(Minecraft.getInstance().options);
             }
         }
         // only set it if it was previously incorrect

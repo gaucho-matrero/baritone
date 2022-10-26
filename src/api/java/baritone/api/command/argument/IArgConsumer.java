@@ -27,11 +27,10 @@ import baritone.api.command.exception.CommandInvalidTypeException;
 import baritone.api.command.exception.CommandNotEnoughArgumentsException;
 import baritone.api.command.exception.CommandTooManyArgumentsException;
 import baritone.api.utils.Helper;
-import net.minecraft.util.EnumFacing;
-
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.stream.Stream;
+import net.minecraft.core.Direction;
 
 /**
  * The {@link IArgConsumer} is how {@link ICommand}s read the arguments passed to them. This class has many benefits:
@@ -404,8 +403,8 @@ public interface IArgConsumer {
     /**
      * Gets an enum value from the enum class with the same name as the next argument's value
      * <p>
-     * For example if you getEnum as an {@link EnumFacing}, and the next argument's value is "up", this will return
-     * {@link EnumFacing#UP}
+     * For example if you getEnum as an {@link Direction}, and the next argument's value is "up", this will return
+     * {@link Direction#UP}
      *
      * @param enumClass The enum class to search
      * @return An enum constant of that class with the same name as the next argument's value
@@ -419,8 +418,8 @@ public interface IArgConsumer {
     /**
      * Gets an enum value from the enum class with the same name as the next argument's value
      * <p>
-     * For example if you getEnum as an {@link EnumFacing}, and the next argument's value is "up", this will return
-     * {@link EnumFacing#UP}
+     * For example if you getEnum as an {@link Direction}, and the next argument's value is "up", this will return
+     * {@link Direction#UP}
      *
      * @param enumClass The enum class to search
      * @param def       The default value
@@ -436,8 +435,8 @@ public interface IArgConsumer {
     /**
      * Gets an enum value from the enum class with the same name as the next argument's value
      * <p>
-     * For example if you getEnum as an {@link EnumFacing}, and the next argument's value is "up", this will return
-     * {@link EnumFacing#UP}
+     * For example if you getEnum as an {@link Direction}, and the next argument's value is "up", this will return
+     * {@link Direction#UP}
      *
      * @param enumClass The enum class to search
      * @return An enum constant of that class with the same name as the next argument's value, or {@code null} if it

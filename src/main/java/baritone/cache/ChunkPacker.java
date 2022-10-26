@@ -20,15 +20,23 @@ package baritone.cache;
 import baritone.api.utils.BlockUtils;
 import baritone.pathing.movement.MovementHelper;
 import baritone.utils.pathing.PathingBlockType;
-import net.minecraft.block.*;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.chunk.BlockStateContainer;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
-
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.AirBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoublePlantBlock;
+import net.minecraft.world.level.block.FlowerBlock;
+import net.minecraft.world.level.block.TallGrassBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.phys.Vec3;
 import java.util.*;
+
+import static baritone.utils.BlockStateInterface.getFromChunk;
 
 /**
  * @author Brady
@@ -38,15 +46,16 @@ public final class ChunkPacker {
 
     private ChunkPacker() {}
 
-    public static CachedChunk pack(Chunk chunk) {
+    public static CachedChunk pack(LevelChunk chunk) {
         //long start = System.nanoTime() / 1000000L;
 
         Map<String, List<BlockPos>> specialBlocks = new HashMap<>();
-        BitSet bitSet = new BitSet(CachedChunk.SIZE);
+        final int height = chunk.getLevel().dimensionType().height();
+        BitSet bitSet = new BitSet(CachedChunk.size(height));
         try {
-            ExtendedBlockStorage[] chunkInternalStorageArray = chunk.getBlockStorageArray();
-            for (int y0 = 0; y0 < 16; y0++) {
-                ExtendedBlockStorage extendedblockstorage = chunkInternalStorageArray[y0];
+            LevelChunkSection[] chunkInternalStorageArray = chunk.getSections();
+            for (int y0 = 0; y0 < height / 16; y0++) {
+                LevelChunkSection extendedblockstorage = chunkInternalStorageArray[y0];
                 if (extendedblockstorage == null) {
                     // any 16x16x16 area that's all air will have null storage
                     // for example, in an ocean biome, with air from y=64 to y=256
@@ -58,7 +67,7 @@ public final class ChunkPacker {
                     // since a bitset is initialized to all zero, and air is saved as zeros
                     continue;
                 }
-                BlockStateContainer bsc = extendedblockstorage.getData();
+                PalettedContainer<BlockState> bsc = extendedblockstorage.getStates();
                 int yReal = y0 << 4;
                 // the mapping of BlockStateContainer.getIndex from xyz to index is y << 8 | z << 4 | x;
                 // for better cache locality, iterate in that order
@@ -67,14 +76,14 @@ public final class ChunkPacker {
                     for (int z = 0; z < 16; z++) {
                         for (int x = 0; x < 16; x++) {
                             int index = CachedChunk.getPositionIndex(x, y, z);
-                            IBlockState state = bsc.get(x, y1, z);
+                            BlockState state = bsc.get(x, y1, z);
                             boolean[] bits = getPathingBlockType(state, chunk, x, y, z).getBits();
                             bitSet.set(index, bits[0]);
                             bitSet.set(index + 1, bits[1]);
                             Block block = state.getBlock();
                             if (CachedChunk.BLOCKS_TO_KEEP_TRACK_OF.contains(block)) {
                                 String name = BlockUtils.blockToString(block);
-                                specialBlocks.computeIfAbsent(name, b -> new ArrayList<>()).add(new BlockPos(x, y, z));
+                                specialBlocks.computeIfAbsent(name, b -> new ArrayList<>()).add(new BlockPos(x, y+chunk.getMinBuildHeight(), z));
                             }
                         }
                     }
@@ -85,45 +94,47 @@ public final class ChunkPacker {
         }
         //long end = System.nanoTime() / 1000000L;
         //System.out.println("Chunk packing took " + (end - start) + "ms for " + chunk.x + "," + chunk.z);
-        IBlockState[] blocks = new IBlockState[256];
+        BlockState[] blocks = new BlockState[256];
 
+        // get top block in columns
         // @formatter:off
         for (int z = 0; z < 16; z++) {
             https://www.ibm.com/developerworks/library/j-perry-writing-good-java-code/index.html
             for (int x = 0; x < 16; x++) {
-                for (int y = 255; y >= 0; y--) {
+                for (int y = height - 1; y >= 0; y--) {
                     int index = CachedChunk.getPositionIndex(x, y, z);
                     if (bitSet.get(index) || bitSet.get(index + 1)) {
-                        blocks[z << 4 | x] = chunk.getBlockState(x, y, z);
+                        blocks[z << 4 | x] = getFromChunk(chunk, x, y, z);
                         continue https;
                     }
                 }
-                blocks[z << 4 | x] = Blocks.AIR.getDefaultState();
+                blocks[z << 4 | x] = Blocks.AIR.defaultBlockState();
             }
         }
         // @formatter:on
-        return new CachedChunk(chunk.x, chunk.z, bitSet, blocks, specialBlocks, System.currentTimeMillis());
+        return new CachedChunk(chunk.getPos().x, chunk.getPos().z, height, bitSet, blocks, specialBlocks, System.currentTimeMillis());
     }
 
-
-    private static PathingBlockType getPathingBlockType(IBlockState state, Chunk chunk, int x, int y, int z) {
+    private static PathingBlockType getPathingBlockType(BlockState state, LevelChunk chunk, int x, int y, int z) {
         Block block = state.getBlock();
-        if (block == Blocks.WATER || block == Blocks.FLOWING_WATER) {
+        if (MovementHelper.isWater(state)) {
             // only water source blocks are plausibly usable, flowing water should be avoid
             // FLOWING_WATER is a waterfall, it doesn't really matter and caching it as AVOID just makes it look wrong
             if (MovementHelper.possiblyFlowing(state)) {
                 return PathingBlockType.AVOID;
             }
+            int adjY = y - chunk.getLevel().dimensionType().minY();
             if (
-                    (x != 15 && MovementHelper.possiblyFlowing(chunk.getBlockState(x + 1, y, z)))
-                            || (x != 0 && MovementHelper.possiblyFlowing(chunk.getBlockState(x - 1, y, z)))
-                            || (z != 15 && MovementHelper.possiblyFlowing(chunk.getBlockState(x, y, z + 1)))
-                            || (z != 0 && MovementHelper.possiblyFlowing(chunk.getBlockState(x, y, z - 1)))
+                    (x != 15 && MovementHelper.possiblyFlowing(getFromChunk(chunk, x + 1, adjY, z)))
+                            || (x != 0 && MovementHelper.possiblyFlowing(getFromChunk(chunk, x - 1, adjY, z)))
+                            || (z != 15 && MovementHelper.possiblyFlowing(getFromChunk(chunk, x, adjY, z + 1)))
+                            || (z != 0 && MovementHelper.possiblyFlowing(getFromChunk(chunk, x, adjY, z - 1)))
             ) {
                 return PathingBlockType.AVOID;
             }
             if (x == 0 || x == 15 || z == 0 || z == 15) {
-                if (BlockLiquid.getSlopeAngle(chunk.getWorld(), new BlockPos(x + (chunk.x << 4), y, z + (chunk.z << 4)), state.getMaterial(), state) == -1000.0F) {
+                Vec3 flow = state.getFluidState().getFlow(chunk.getLevel(), new BlockPos(x + (chunk.getPos().x << 4), y, z + (chunk.getPos().z << 4)));
+                if (flow.x != 0.0 || flow.z != 0.0) {
                     return PathingBlockType.WATER;
                 }
                 return PathingBlockType.AVOID;
@@ -131,38 +142,38 @@ public final class ChunkPacker {
             return PathingBlockType.WATER;
         }
 
-        if (MovementHelper.avoidWalkingInto(block) || MovementHelper.isBottomSlab(state)) {
+        if (MovementHelper.avoidWalkingInto(state) || MovementHelper.isBottomSlab(state)) {
             return PathingBlockType.AVOID;
         }
         // We used to do an AABB check here
         // however, this failed in the nether when you were near a nether fortress
         // because fences check their adjacent blocks in the world for their fence connection status to determine AABB shape
         // this caused a nullpointerexception when we saved chunks on unload, because they were unable to check their neighbors
-        if (block == Blocks.AIR || block instanceof BlockTallGrass || block instanceof BlockDoublePlant || block instanceof BlockFlower) {
+        if (block instanceof AirBlock || block instanceof TallGrassBlock || block instanceof DoublePlantBlock || block instanceof FlowerBlock) {
             return PathingBlockType.AIR;
         }
 
         return PathingBlockType.SOLID;
     }
 
-    public static IBlockState pathingTypeToBlock(PathingBlockType type, int dimension) {
+    public static BlockState pathingTypeToBlock(PathingBlockType type, DimensionType dimension) {
         switch (type) {
             case AIR:
-                return Blocks.AIR.getDefaultState();
+                return Blocks.AIR.defaultBlockState();
             case WATER:
-                return Blocks.WATER.getDefaultState();
+                return Blocks.WATER.defaultBlockState();
             case AVOID:
-                return Blocks.LAVA.getDefaultState();
+                return Blocks.LAVA.defaultBlockState();
             case SOLID:
                 // Dimension solid types
-                switch (dimension) {
-                    case -1:
-                        return Blocks.NETHERRACK.getDefaultState();
-                    case 0:
-                    default: // The fallback solid type
-                        return Blocks.STONE.getDefaultState();
-                    case 1:
-                        return Blocks.END_STONE.getDefaultState();
+                if (dimension.natural()) {
+                    return Blocks.STONE.defaultBlockState();
+                }
+                if (dimension.ultraWarm()) {
+                    return Blocks.NETHERRACK.defaultBlockState();
+                }
+                if (dimension.effectsLocation().equals(BuiltinDimensionTypes.END_EFFECTS)) {
+                    return Blocks.END_STONE.defaultBlockState();
                 }
             default:
                 return null;

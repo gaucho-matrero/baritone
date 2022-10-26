@@ -20,18 +20,18 @@ package baritone.utils.player;
 import baritone.api.utils.Helper;
 import baritone.api.utils.IPlayerController;
 import baritone.utils.accessor.IPlayerControllerMP;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.multiplayer.WorldClient;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.ClickType;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumActionResult;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameType;
-import net.minecraft.world.World;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
+
 
 /**
  * Implementation of {@link IPlayerController} that chains to the primary player controller's methods
@@ -45,51 +45,52 @@ public enum PrimaryPlayerController implements IPlayerController, Helper {
 
     @Override
     public void syncHeldItem() {
-        ((IPlayerControllerMP) mc.playerController).callSyncCurrentPlayItem();
+        ((IPlayerControllerMP) mc.gameMode).callSyncCurrentPlayItem();
     }
 
     @Override
     public boolean hasBrokenBlock() {
-        return ((IPlayerControllerMP) mc.playerController).getCurrentBlock().getY() == -1;
+        return ((IPlayerControllerMP) mc.gameMode).getCurrentBlock().getY() == -1;
     }
 
     @Override
-    public boolean onPlayerDamageBlock(BlockPos pos, EnumFacing side) {
-        return mc.playerController.onPlayerDamageBlock(pos, side);
+    public boolean onPlayerDamageBlock(BlockPos pos, Direction side) {
+        return mc.gameMode.continueDestroyBlock(pos, side);
     }
 
     @Override
     public void resetBlockRemoving() {
-        mc.playerController.resetBlockRemoving();
+        mc.gameMode.stopDestroyBlock();
     }
 
     @Override
-    public ItemStack windowClick(int windowId, int slotId, int mouseButton, ClickType type, EntityPlayer player) {
-        return mc.playerController.windowClick(windowId, slotId, mouseButton, type, player);
+    public void windowClick(int windowId, int slotId, int mouseButton, ClickType type, Player player) {
+        mc.gameMode.handleInventoryMouseClick(windowId, slotId, mouseButton, type, player);
     }
 
     @Override
     public GameType getGameType() {
-        return mc.playerController.getCurrentGameType();
+        return mc.gameMode.getPlayerMode();
     }
 
     @Override
-    public EnumActionResult processRightClickBlock(EntityPlayerSP player, World world, BlockPos pos, EnumFacing direction, Vec3d vec, EnumHand hand) {
-        return mc.playerController.processRightClickBlock(player, (WorldClient) world, pos, direction, vec, hand);
+    public InteractionResult processRightClickBlock(LocalPlayer player, Level world, InteractionHand hand, BlockHitResult result) {
+        // primaryplayercontroller is always in a ClientWorld so this is ok
+        return mc.gameMode.useItemOn(player, hand, result);
     }
 
     @Override
-    public EnumActionResult processRightClick(EntityPlayerSP player, World world, EnumHand hand) {
-        return mc.playerController.processRightClick(player, world, hand);
+    public InteractionResult processRightClick(LocalPlayer player, Level world, InteractionHand hand) {
+        return mc.gameMode.useItem(player, hand);
     }
 
     @Override
-    public boolean clickBlock(BlockPos loc, EnumFacing face) {
-        return mc.playerController.clickBlock(loc, face);
+    public boolean clickBlock(BlockPos loc, Direction face) {
+        return mc.gameMode.startDestroyBlock(loc, face);
     }
 
     @Override
     public void setHittingBlock(boolean hittingBlock) {
-        ((IPlayerControllerMP) mc.playerController).setIsHittingBlock(hittingBlock);
+        ((IPlayerControllerMP) mc.gameMode).setIsHittingBlock(hittingBlock);
     }
 }
