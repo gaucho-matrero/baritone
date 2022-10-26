@@ -278,6 +278,7 @@ public abstract class Movement implements IMovement, MovementHelper {
         List<BlockPos> result = new ArrayList<>();
         if (positionToPlace != null && !MovementHelper.canWalkOn(bsi, positionToPlace.x, positionToPlace.y, positionToPlace.z)) {
             result.add(positionToPlace);
+
         }
         toPlaceCached = result;
         return result;

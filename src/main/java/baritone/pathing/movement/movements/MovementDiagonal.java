@@ -18,6 +18,7 @@
 package baritone.pathing.movement.movements;
 
 import baritone.Baritone;
+import baritone.altoclef.AltoClefSettings;
 import baritone.api.IBaritone;
 import baritone.api.pathing.movement.MovementStatus;
 import baritone.api.utils.BetterBlockPos;

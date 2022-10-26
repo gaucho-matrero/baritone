@@ -18,6 +18,7 @@
 package baritone.pathing.movement.movements;
 
 import baritone.Baritone;
+import baritone.api.BaritoneAPI;
 import baritone.api.IBaritone;
 import baritone.api.pathing.movement.MovementStatus;
 import baritone.api.utils.BetterBlockPos;
@@ -74,6 +75,11 @@ public class MovementPillar extends Movement {
             }
         }
         if (from == Blocks.VINE && !hasAgainst(context, x, y, z)) { // TODO this vine can't be climbed, but we could place a pillar still since vines are replacable, no? perhaps the pillar jump would be impossible because of the slowdown actually.
+            return COST_INF;
+        }
+        // do NOT try to pillar up if we're in lava that's too deep
+        // otherwise we'll get stuck in the lava.
+        if (from == Blocks.LAVA && fromState.getFluidState().getAmount() > 3) {
             return COST_INF;
         }
         BlockState toBreak = context.get(x, y + 2, z);

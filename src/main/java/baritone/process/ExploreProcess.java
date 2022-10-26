@@ -18,6 +18,7 @@
 package baritone.process;
 
 import baritone.Baritone;
+import baritone.api.BaritoneAPI;
 import baritone.api.cache.ICachedWorld;
 import baritone.api.pathing.goals.Goal;
 import baritone.api.pathing.goals.GoalComposite;
@@ -29,6 +30,7 @@ import baritone.api.process.PathingCommandType;
 import baritone.api.utils.MyChunkPos;
 import baritone.cache.CachedWorld;
 import baritone.utils.BaritoneProcessHelper;
+import baritone.utils.Trail;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -41,12 +43,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.ChunkPos;
 
 public final class ExploreProcess extends BaritoneProcessHelper implements IExploreProcess {
-
     private BlockPos explorationOrigin;
-
     private IChunkFilter filter;
-
     private int distanceCompleted;
+    //private Trail snake;
 
     public ExploreProcess(Baritone baritone) {
         super(baritone);
@@ -80,6 +80,17 @@ public final class ExploreProcess extends BaritoneProcessHelper implements IExpl
 
     @Override
     public PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel) {
+        /*if (snake == null) snake = new Trail();
+        snake.tick();
+        if (snake.passedLimits() && snake.getRunAwayCommand() != null) {
+            return snake.getRunAwayCommand();
+        }
+        snake.printCurrent();*/
+
+        if (Trail.getInstance().updateAndCheck()) {
+            return Trail.getInstance().getRunAwayCommand();
+        }
+
         if (calcFailed) {
             logDirect("Failed");
             if (Baritone.settings().notificationOnExploreFinished.value) {

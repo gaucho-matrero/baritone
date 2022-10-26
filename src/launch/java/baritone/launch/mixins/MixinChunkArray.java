@@ -18,7 +18,6 @@
 package baritone.launch.mixins;
 
 import baritone.utils.accessor.IChunkArray;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 
@@ -28,28 +27,24 @@ import net.minecraft.world.level.chunk.LevelChunk;
 
 @Mixin(targets = "net.minecraft.client.multiplayer.ClientChunkCache$Storage")
 public abstract class MixinChunkArray implements IChunkArray {
-    @Final
     @Shadow
-    AtomicReferenceArray<LevelChunk> chunks;
-    @Final
+    private AtomicReferenceArray<LevelChunk> chunks;
     @Shadow
-    int chunkRadius;
-
-    @Final
+    private int chunkRadius;
     @Shadow
     private int viewRange;
     @Shadow
-    int viewCenterX;
+    private int viewCenterX;
     @Shadow
-    int viewCenterZ;
+    private int viewCenterZ;
     @Shadow
-    int chunkCount;
+    private int chunkCount;
 
     @Shadow
-    abstract boolean inRange(int x, int z);
+    protected abstract boolean inRange(int x, int z);
 
     @Shadow
-    abstract int getIndex(int x, int z);
+    protected abstract int getIndex(int x, int z);
 
     @Shadow
     protected abstract void replace(int index, LevelChunk chunk);

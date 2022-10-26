@@ -47,4 +47,13 @@ public interface ICustomGoalProcess extends IBaritoneProcess {
         this.setGoal(goal);
         this.path();
     }
+
+    /**
+     * Makes the bot walk to a random spot nearby.
+     *
+     * @return true if already active, else false
+     */
+    boolean reactivateRunAway();
+
+    boolean isRunAwayActive();
 }

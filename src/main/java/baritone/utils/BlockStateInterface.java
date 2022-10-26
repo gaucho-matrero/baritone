@@ -22,7 +22,6 @@ import baritone.api.utils.IPlayerContext;
 import baritone.cache.CachedRegion;
 import baritone.cache.WorldData;
 import baritone.utils.accessor.IClientChunkProvider;
-import baritone.utils.pathing.BetterWorldBorder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.core.BlockPos;
@@ -44,10 +43,9 @@ public class BlockStateInterface {
 
     private final ClientChunkCache provider;
     private final WorldData worldData;
-    protected final Level world;
+    protected final BlockGetter world;
     public final BlockPos.MutableBlockPos isPassableBlockPos;
     public final BlockGetter access;
-    public final BetterWorldBorder worldBorder;
 
     private LevelChunk prev = null;
     private CachedRegion prevCached = null;
@@ -66,7 +64,6 @@ public class BlockStateInterface {
 
     public BlockStateInterface(Level world, WorldData worldData, boolean copyLoadedChunks) {
         this.world = world;
-        this.worldBorder = new BetterWorldBorder(world.getWorldBorder());
         this.worldData = worldData;
         if (copyLoadedChunks) {
             this.provider = ((IClientChunkProvider) world.getChunkSource()).createThreadSafeCopy();
@@ -100,9 +97,9 @@ public class BlockStateInterface {
     }
 
     public BlockState get0(int x, int y, int z) { // Mickey resigned
-        y -= world.dimensionType().minY();
+        y -= worldData.dimension.minY();
         // Invalid vertical position
-        if (y < 0 || y >= world.dimensionType().height()) {
+        if (y < 0 || y >= worldData.dimension.height()) {
             return AIR;
         }
 

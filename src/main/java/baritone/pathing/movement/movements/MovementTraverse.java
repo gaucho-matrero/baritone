@@ -18,6 +18,7 @@
 package baritone.pathing.movement.movements;
 
 import baritone.Baritone;
+import baritone.altoclef.AltoClefSettings;
 import baritone.api.IBaritone;
 import baritone.api.pathing.movement.MovementStatus;
 import baritone.api.utils.BetterBlockPos;
@@ -180,6 +181,9 @@ public class MovementTraverse extends Movement {
             if (MovementHelper.avoidWalkingInto(pb1)) {
                 return state;
             }
+            if (AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(positionsToBreak[0]) || AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(positionsToBreak[1])) {
+                return state;
+            }
             // and we aren't already pressed up against the block
             double dist = Math.max(Math.abs(ctx.player().position().x - (dest.getX() + 0.5D)), Math.abs(ctx.player().position().z - (dest.getZ() + 0.5D)));
             if (dist < 0.83) {
@@ -259,7 +263,9 @@ public class MovementTraverse extends Movement {
             BlockPos into = dest.subtract(src).offset(dest);
             BlockState intoBelow = BlockStateInterface.get(ctx, into);
             BlockState intoAbove = BlockStateInterface.get(ctx, into.above());
-            if (wasTheBridgeBlockAlwaysThere && (!MovementHelper.isLiquid(ctx, feet) || Baritone.settings().sprintInWater.value) && (!MovementHelper.avoidWalkingInto(intoBelow) || MovementHelper.isWater(intoBelow)) && !MovementHelper.avoidWalkingInto(intoAbove)) {
+            boolean avoidBelow = MovementHelper.avoidWalkingInto(intoBelow) || AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(into);;
+            boolean avoidAbove = MovementHelper.avoidWalkingInto(intoAbove) || AltoClefSettings.getInstance().shouldAvoidWalkThroughForce(into.above());;
+            if (wasTheBridgeBlockAlwaysThere && (!MovementHelper.isLiquid(ctx, feet) || Baritone.settings().sprintInWater.value) && (!avoidBelow || MovementHelper.isWater(intoBelow)) && !avoidAbove) {
                 state.setInput(Input.SPRINT, true);
             }
 
@@ -277,7 +283,7 @@ public class MovementTraverse extends Movement {
         } else {
             wasTheBridgeBlockAlwaysThere = false;
             Block standingOn = BlockStateInterface.get(ctx, feet.below()).getBlock();
-            if (standingOn.equals(Blocks.SOUL_SAND) || standingOn instanceof SlabBlock) { // see issue #118
+            if ((standingOn.equals(Blocks.SOUL_SAND) && !AltoClefSettings.getInstance().shouldTreatSoulSandAsOrdinaryBlock()) || standingOn instanceof SlabBlock) { // see issue #118
                 double dist = Math.max(Math.abs(dest.getX() + 0.5 - ctx.player().position().x), Math.abs(dest.getZ() + 0.5 - ctx.player().position().z));
                 if (dist < 0.85) { // 0.5 + 0.3 + epsilon
                     MovementHelper.moveTowards(ctx, state, dest);

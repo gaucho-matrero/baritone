@@ -18,20 +18,23 @@
 package baritone.utils;
 
 import baritone.Baritone;
-import baritone.altoclef.AltoClefSettings;
-import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.SwordItem;
-import net.minecraft.world.item.TieredItem;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
-import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+
+import baritone.altoclef.AltoClefSettings;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.item.DiggerItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.SwordItem;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * A cached list of the best tools on the hotbar for any block
@@ -77,20 +80,13 @@ public class ToolSet {
     }
 
     /**
-     * Evaluate the material cost of a possible tool. The priority matches the
-     * harvest level order; there is a chance for multiple at the same with modded tools
-     * but in that case we don't really care.
+     * Evaluate the material cost of a possible tool. Will return 1 for tools, -1 for other
      *
      * @param itemStack a possibly empty ItemStack
-     * @return values from 0 up
+     * @return Either 1 or -1
      */
     private int getMaterialCost(ItemStack itemStack) {
-        if (itemStack.getItem() instanceof TieredItem) {
-            TieredItem tool = (TieredItem) itemStack.getItem();
-            return tool.getTier().getLevel();
-        } else {
-            return -1;
-        }
+        return itemStack.getItem() instanceof DiggerItem ? 1 : -1;
     }
 
     public boolean hasSilkTouch(ItemStack stack) {
@@ -129,7 +125,7 @@ public class ToolSet {
             if (!Baritone.settings().useSwordToMine.value && itemStack.getItem() instanceof SwordItem) {
                 continue;
             }
-          
+
             if (Baritone.settings().itemSaver.value && (itemStack.getDamageValue() + Baritone.settings().itemSaverThreshold.value) >= itemStack.getMaxDamage() && itemStack.getMaxDamage() > 1) {
                 continue;
             }
@@ -190,11 +186,24 @@ public class ToolSet {
                 speed += effLevel * effLevel + 1;
             }
         }
+
+        /*
+        // Shears are fast against items that don't say they're fast.
+        if (item.getItem() == Items.SHEARS && areShearsEffective(state.getBlock())) {
+            return Double.POSITIVE_INFINITY;
+        }
+         */
         // We specify to force use this tool.
         if (AltoClefSettings.getInstance().shouldForceUseTool(state, item)) {
             return Double.POSITIVE_INFINITY;
         }
-        speed /= hardness;
+
+        if (hardness != 0.0) {
+            speed /= hardness;
+        } else {
+            speed *= 100000;
+        }
+
         if (!state.requiresCorrectToolForDrops() || (!item.isEmpty() && item.isCorrectToolForDrops(state))) {
             return speed / 30;
         } else {

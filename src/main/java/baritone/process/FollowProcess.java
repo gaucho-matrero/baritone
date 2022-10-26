@@ -29,6 +29,8 @@ import baritone.utils.BaritoneProcessHelper;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import baritone.utils.Trail;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 
@@ -38,7 +40,6 @@ import net.minecraft.world.entity.Entity;
  * @author leijurv
  */
 public final class FollowProcess extends BaritoneProcessHelper implements IFollowProcess {
-
     private Predicate<Entity> filter;
     private List<Entity> cache;
 
@@ -48,6 +49,10 @@ public final class FollowProcess extends BaritoneProcessHelper implements IFollo
 
     @Override
     public PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel) {
+        if (Trail.getInstance().updateAndCheck()) {
+            return Trail.getInstance().getRunAwayCommand();
+        }
+
         scanWorld();
         Goal goal = new GoalComposite(cache.stream().map(this::towards).toArray(Goal[]::new));
         return new PathingCommand(goal, PathingCommandType.REVALIDATE_GOAL_AND_PATH);

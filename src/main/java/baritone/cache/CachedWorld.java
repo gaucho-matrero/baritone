@@ -211,7 +211,7 @@ public final class CachedWorld implements ICachedWorld, Helper {
     private BlockPos guessPosition() {
         for (IBaritone ibaritone : BaritoneAPI.getProvider().getAllBaritones()) {
             IWorldData data = ibaritone.getWorldProvider().getCurrentWorld();
-            if (data != null && data.getCachedWorld() == this && ibaritone.getPlayerContext().player() != null) {
+            if (data != null && data.getCachedWorld() == this) {
                 return ibaritone.getPlayerContext().playerFeet();
             }
         }
