@@ -19,26 +19,20 @@ package baritone.launch.mixins;
 
 import baritone.api.BaritoneAPI;
 import baritone.api.IBaritone;
-import baritone.api.event.events.BlockInteractEvent;
 import baritone.api.event.events.TickEvent;
 import baritone.api.event.events.WorldEvent;
 import baritone.api.event.events.type.EventState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.multiplayer.WorldClient;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumActionResult;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
-import org.spongepowered.asm.lib.Opcodes;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import org.objectweb.asm.Opcodes;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.function.BiFunction;
 
@@ -50,27 +44,28 @@ import java.util.function.BiFunction;
 public class MixinMinecraft {
 
     @Shadow
-    public EntityPlayerSP player;
+    public LocalPlayer player;
     @Shadow
-    public WorldClient world;
+    public ClientLevel level;
 
     @Inject(
-            method = "init",
+            method = "<init>",
             at = @At("RETURN")
     )
     private void postInit(CallbackInfo ci) {
         BaritoneAPI.getProvider().getPrimaryBaritone();
     }
 
+
     @Inject(
-            method = "runTick",
+            method = "tick",
             at = @At(
-                    value = "FIELD",
-                    opcode = Opcodes.GETFIELD,
-                    target = "net/minecraft/client/Minecraft.currentScreen:Lnet/minecraft/client/gui/GuiScreen;",
-                    ordinal = 5,
-                    shift = At.Shift.BY,
-                    by = -3
+            value = "FIELD",
+            opcode = Opcodes.GETFIELD,
+            target = "Lnet/minecraft/client/Minecraft;screen:Lnet/minecraft/client/gui/screens/Screen;",
+            ordinal = 4,
+            shift  = At.Shift.BY,
+            by = -3
             )
     )
     private void runTick(CallbackInfo ci) {
@@ -88,12 +83,12 @@ public class MixinMinecraft {
     }
 
     @Inject(
-            method = "loadWorld(Lnet/minecraft/client/multiplayer/WorldClient;Ljava/lang/String;)V",
+            method = "setLevel",
             at = @At("HEAD")
     )
-    private void preLoadWorld(WorldClient world, String loadingMessage, CallbackInfo ci) {
+    private void preLoadWorld(ClientLevel world, CallbackInfo ci) {
         // If we're unloading the world but one doesn't exist, ignore it
-        if (this.world == null && world == null) {
+        if (this.level == null && world == null) {
             return;
         }
 
@@ -108,10 +103,10 @@ public class MixinMinecraft {
     }
 
     @Inject(
-            method = "loadWorld(Lnet/minecraft/client/multiplayer/WorldClient;Ljava/lang/String;)V",
+            method = "setLevel",
             at = @At("RETURN")
     )
-    private void postLoadWorld(WorldClient world, String loadingMessage, CallbackInfo ci) {
+    private void postLoadWorld(ClientLevel world, CallbackInfo ci) {
         // still fire event for both null, as that means we've just finished exiting a world
 
         // mc.world changing is only the primary baritone
@@ -124,41 +119,36 @@ public class MixinMinecraft {
     }
 
     @Redirect(
-            method = "runTick",
+            method = "tick",
             at = @At(
                     value = "FIELD",
                     opcode = Opcodes.GETFIELD,
-                    target = "net/minecraft/client/gui/GuiScreen.allowUserInput:Z"
+                    target = "Lnet/minecraft/client/gui/screens/Screen;passEvents:Z"
             )
     )
-    private boolean isAllowUserInput(GuiScreen screen) {
+    private boolean passEvents(Screen screen) {
         // allow user input is only the primary baritone
-        return (BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().isPathing() && player != null) || screen.allowUserInput;
+        return (BaritoneAPI.getProvider().getPrimaryBaritone().getPathingBehavior().isPathing() && player != null) || screen.passEvents;
     }
 
-    @Inject(
-            method = "clickMouse",
-            at = @At(
-                    value = "INVOKE",
-                    target = "net/minecraft/client/multiplayer/PlayerControllerMP.clickBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/EnumFacing;)Z"
-            ),
-            locals = LocalCapture.CAPTURE_FAILHARD
-    )
-    private void onBlockBreak(CallbackInfo ci, BlockPos pos) {
-        // clickMouse is only for the main player
-        BaritoneAPI.getProvider().getPrimaryBaritone().getGameEventHandler().onBlockInteract(new BlockInteractEvent(pos, BlockInteractEvent.Type.START_BREAK));
-    }
-
-    @Inject(
+    // TODO
+    // FIXME
+    // bradyfix
+    // i cant mixin
+    // lol
+    // https://discordapp.com/channels/208753003996512258/503692253881958400/674760939681349652
+    // https://discordapp.com/channels/208753003996512258/503692253881958400/674756457966862376
+    /*@Inject(
             method = "rightClickMouse",
             at = @At(
                     value = "INVOKE",
-                    target = "net/minecraft/client/entity/EntityPlayerSP.swingArm(Lnet/minecraft/util/EnumHand;)V"
+                    target = "net/minecraft/client/entity/player/ClientPlayerEntity.swingArm(Lnet/minecraft/util/Hand;)V",
+                    ordinal = 1
             ),
             locals = LocalCapture.CAPTURE_FAILHARD
     )
-    private void onBlockUse(CallbackInfo ci, EnumHand var1[], int var2, int var3, EnumHand enumhand, ItemStack itemstack, BlockPos blockpos, int i, EnumActionResult enumactionresult) {
+    private void onBlockUse(CallbackInfo ci, Hand var1[], int var2, int var3, Hand enumhand, ItemStack itemstack, EntityRayTraceResult rt, Entity ent, ActionResultType art, BlockRayTraceResult raytrace, int i, ActionResultType enumactionresult) {
         // rightClickMouse is only for the main player
-        BaritoneAPI.getProvider().getPrimaryBaritone().getGameEventHandler().onBlockInteract(new BlockInteractEvent(blockpos, BlockInteractEvent.Type.USE));
-    }
+        BaritoneAPI.getProvider().getPrimaryBaritone().getGameEventHandler().onBlockInteract(new BlockInteractEvent(raytrace.getPos(), BlockInteractEvent.Type.USE));
+    }*/
 }
