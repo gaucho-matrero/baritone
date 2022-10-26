@@ -18,9 +18,9 @@
 package baritone.api.schematic;
 
 import baritone.api.utils.BlockOptionalMeta;
-import net.minecraft.block.state.IBlockState;
-
 import java.util.List;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class FillSchematic extends AbstractSchematic {
 
@@ -31,8 +31,8 @@ public class FillSchematic extends AbstractSchematic {
         this.bom = bom;
     }
 
-    public FillSchematic(int x, int y, int z, IBlockState state) {
-        this(x, y, z, new BlockOptionalMeta(state.getBlock(), state.getBlock().getMetaFromState(state)));
+    public FillSchematic(int x, int y, int z, BlockState state) {
+        this(x, y, z, new BlockOptionalMeta(state.getBlock()));
     }
 
     public BlockOptionalMeta getBom() {
@@ -40,11 +40,11 @@ public class FillSchematic extends AbstractSchematic {
     }
 
     @Override
-    public IBlockState desiredState(int x, int y, int z, IBlockState current, List<IBlockState> approxPlaceable) {
+    public BlockState desiredState(int x, int y, int z, BlockState current, List<BlockState> approxPlaceable) {
         if (bom.matches(current)) {
             return current;
         }
-        for (IBlockState placeable : approxPlaceable) {
+        for (BlockState placeable : approxPlaceable) {
             if (bom.matches(placeable)) {
                 return placeable;
             }

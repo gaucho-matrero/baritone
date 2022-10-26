@@ -26,13 +26,13 @@ import baritone.api.process.IFollowProcess;
 import baritone.api.process.PathingCommand;
 import baritone.api.process.PathingCommandType;
 import baritone.utils.BaritoneProcessHelper;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import baritone.utils.Trail;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
 
 /**
  * Follow an entity
@@ -40,7 +40,6 @@ import java.util.stream.Stream;
  * @author leijurv
  */
 public final class FollowProcess extends BaritoneProcessHelper implements IFollowProcess {
-
     private Predicate<Entity> filter;
     private List<Entity> cache;
 
@@ -50,6 +49,10 @@ public final class FollowProcess extends BaritoneProcessHelper implements IFollo
 
     @Override
     public PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel) {
+        if (Trail.getInstance().updateAndCheck()) {
+            return Trail.getInstance().getRunAwayCommand();
+        }
+
         scanWorld();
         Goal goal = new GoalComposite(cache.stream().map(this::towards).toArray(Goal[]::new));
         return new PathingCommand(goal, PathingCommandType.REVALIDATE_GOAL_AND_PATH);
@@ -58,10 +61,10 @@ public final class FollowProcess extends BaritoneProcessHelper implements IFollo
     private Goal towards(Entity following) {
         BlockPos pos;
         if (Baritone.settings().followOffsetDistance.value == 0) {
-            pos = new BlockPos(following);
+            pos = following.blockPosition();
         } else {
-            GoalXZ g = GoalXZ.fromDirection(following.getPositionVector(), Baritone.settings().followOffsetDirection.value, Baritone.settings().followOffsetDistance.value);
-            pos = new BlockPos(g.getX(), following.posY, g.getZ());
+            GoalXZ g = GoalXZ.fromDirection(following.position(), Baritone.settings().followOffsetDirection.value, Baritone.settings().followOffsetDistance.value);
+            pos = new BlockPos(g.getX(), following.position().y, g.getZ());
         }
         return new GoalNear(pos, Baritone.settings().followRadius.value);
     }
@@ -71,18 +74,17 @@ public final class FollowProcess extends BaritoneProcessHelper implements IFollo
         if (entity == null) {
             return false;
         }
-        if (entity.isDead) {
+        if (!entity.isAlive()) {
             return false;
         }
         if (entity.equals(ctx.player())) {
             return false;
         }
-        return ctx.world().loadedEntityList.contains(entity);
+        return ctx.entitiesStream().anyMatch(entity::equals);
     }
 
     private void scanWorld() {
-        cache = Stream.of(ctx.world().loadedEntityList, ctx.world().playerEntities)
-                .flatMap(List::stream)
+        cache = ctx.entitiesStream()
                 .filter(this::followable)
                 .filter(this.filter)
                 .distinct()

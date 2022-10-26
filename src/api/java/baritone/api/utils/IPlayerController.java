@@ -18,17 +18,16 @@
 package baritone.api.utils;
 
 import baritone.api.BaritoneAPI;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.ClickType;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumActionResult;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.GameType;
-import net.minecraft.world.World;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
 
 /**
  * @author Brady
@@ -40,19 +39,19 @@ public interface IPlayerController {
 
     boolean hasBrokenBlock();
 
-    boolean onPlayerDamageBlock(BlockPos pos, EnumFacing side);
+    boolean onPlayerDamageBlock(BlockPos pos, Direction side);
 
     void resetBlockRemoving();
 
-    ItemStack windowClick(int windowId, int slotId, int mouseButton, ClickType type, EntityPlayer player);
+    void windowClick(int windowId, int slotId, int mouseButton, ClickType type, Player player);
 
     GameType getGameType();
 
-    EnumActionResult processRightClickBlock(EntityPlayerSP player, World world, BlockPos pos, EnumFacing direction, Vec3d vec, EnumHand hand);
+    InteractionResult processRightClickBlock(LocalPlayer player, Level world, InteractionHand hand, BlockHitResult result);
 
-    EnumActionResult processRightClick(EntityPlayerSP player, World world, EnumHand hand);
+    InteractionResult processRightClick(LocalPlayer player, Level world, InteractionHand hand);
 
-    boolean clickBlock(BlockPos loc, EnumFacing face);
+    boolean clickBlock(BlockPos loc, Direction face);
 
     void setHittingBlock(boolean hittingBlock);
 

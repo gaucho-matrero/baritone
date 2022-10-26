@@ -18,13 +18,15 @@
 package baritone.api.process;
 
 import baritone.api.schematic.ISchematic;
-import net.minecraft.block.state.IBlockState;
+import baritone.api.utils.BetterBlockPos;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author Brady
@@ -52,8 +54,17 @@ public interface IBuilderProcess extends IBaritoneProcess {
     boolean build(String name, File schematic, Vec3i origin);
 
     default boolean build(String schematicFile, BlockPos origin) {
-        File file = new File(new File(Minecraft.getMinecraft().gameDir, "schematics"), schematicFile);
+        File file = new File(new File(Minecraft.getInstance().gameDirectory, "schematics"), schematicFile);
         return build(schematicFile, file, origin);
+    }
+
+    void build(String name, ISchematic schematic, Vec3i origin, boolean fromAltoclef);
+
+    boolean build(String name, File schematic, Vec3i origin, boolean fromAltoclef);
+
+    default boolean build(String schematicFile, BlockPos origin, boolean fromAltoclef) {
+        File file = new File(new File(Minecraft.getInstance().gameDirectory, "schematics"), schematicFile);
+        return build(schematicFile, file, origin, fromAltoclef);
     }
 
     void buildOpenSchematic();
@@ -71,5 +82,21 @@ public interface IBuilderProcess extends IBaritoneProcess {
      * schematics, for example, to pick a state that the builder process will be happy with, because any variation will
      * cause it to give up. This is updated every tick, but only while the builder process is active.
      */
-    List<IBlockState> getApproxPlaceable();
+    List<BlockState> getApproxPlaceable();
+
+    Map<BlockState, Integer> getMissing();
+
+    Vec3i getSchemSize();
+
+    boolean isFromAltoclefFinished();
+
+    boolean isFromAltoclef();
+
+    void reset();
+
+    boolean clearState();
+
+    void noteInsert(final BlockPos pos);
+
+    void popStack();
 }

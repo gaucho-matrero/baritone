@@ -20,43 +20,50 @@ package baritone.cache;
 import baritone.api.cache.ICachedWorld;
 import baritone.api.cache.IWorldScanner;
 import baritone.api.utils.BetterBlockPos;
+import baritone.api.utils.BlockOptionalMeta;
 import baritone.api.utils.BlockOptionalMetaLookup;
 import baritone.api.utils.IPlayerContext;
-import baritone.utils.accessor.IBlockStateContainer;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.multiplayer.ChunkProviderClient;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.Chunk;
-import net.minecraft.world.chunk.IChunkProvider;
-import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
-
 import java.util.*;
 import java.util.stream.IntStream;
+import net.minecraft.client.multiplayer.ClientChunkCache;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ChunkSource;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainer;
 
 public enum WorldScanner implements IWorldScanner {
 
     INSTANCE;
 
-    private static final int[] DEFAULT_COORDINATE_ITERATION_ORDER = IntStream.range(0, 16).toArray();
-
     @Override
-    public List<BlockPos> scanChunkRadius(IPlayerContext ctx, BlockOptionalMetaLookup filter, int max, int yLevelThreshold, int maxSearchRadius) {
+    public List<BlockPos> scanChunkRadius(IPlayerContext ctx, BlockOptionalMetaLookup filter, int maxPerType, int yLevelThreshold, int maxSearchRadius) {
         ArrayList<BlockPos> res = new ArrayList<>();
 
         if (filter.blocks().isEmpty()) {
             return res;
         }
-
-        ChunkProviderClient chunkProvider = (ChunkProviderClient) ctx.world().getChunkProvider();
+        ClientChunkCache chunkProvider = (ClientChunkCache) ctx.world().getChunkSource();
 
         int maxSearchRadiusSq = maxSearchRadius * maxSearchRadius;
         int playerChunkX = ctx.playerFeet().getX() >> 4;
         int playerChunkZ = ctx.playerFeet().getZ() >> 4;
-        int playerY = ctx.playerFeet().getY();
+        int playerY = ctx.playerFeet().getY() - ctx.world().dimensionType().minY();
 
         int playerYBlockStateContainerIndex = playerY >> 4;
-        int[] coordinateIterationOrder = IntStream.range(0, 16).boxed().sorted(Comparator.comparingInt(y -> Math.abs(y - playerYBlockStateContainerIndex))).mapToInt(x -> x).toArray();
+        int[] coordinateIterationOrder = IntStream.range(0, ctx.world().dimensionType().height() / 16).boxed().sorted(Comparator.comparingInt(y -> Math.abs(y - playerYBlockStateContainerIndex))).mapToInt(x -> x).toArray();
+
+        // How many positions we can track per block
+        HashMap<Block, Integer> countByType = new HashMap<>();
+        HashSet<Block> toFindAtYLevel = new HashSet<>();
+        for (BlockOptionalMeta bom : filter.blocks()) {
+            countByType.put(bom.getBlock(), maxPerType);
+            toFindAtYLevel.add(bom.getBlock());
+        }
+
 
         int searchRadiusSq = 0;
         boolean foundWithinY = false;
@@ -65,6 +72,10 @@ public enum WorldScanner implements IWorldScanner {
             boolean foundChunks = false;
             for (int xoff = -searchRadiusSq; xoff <= searchRadiusSq; xoff++) {
                 for (int zoff = -searchRadiusSq; zoff <= searchRadiusSq; zoff++) {
+                    // We have completely filled all of our blocks.
+                    if (countByType.isEmpty()) {
+                        return res;
+                    }
                     int distance = xoff * xoff + zoff * zoff;
                     if (distance != searchRadiusSq) {
                         continue;
@@ -72,19 +83,18 @@ public enum WorldScanner implements IWorldScanner {
                     foundChunks = true;
                     int chunkX = xoff + playerChunkX;
                     int chunkZ = zoff + playerChunkZ;
-                    Chunk chunk = chunkProvider.getLoadedChunk(chunkX, chunkZ);
+                    LevelChunk chunk = chunkProvider.getChunk(chunkX, chunkZ, null, false);
                     if (chunk == null) {
                         continue;
                     }
                     allUnloaded = false;
-                    if (scanChunkInto(chunkX << 4, chunkZ << 4, chunk, filter, res, max, yLevelThreshold, playerY, coordinateIterationOrder)) {
+                    if (scanChunkInto(chunkX << 4, chunkZ << 4, ctx.world().dimensionType().minY(), chunk, filter, res, countByType, toFindAtYLevel, yLevelThreshold, playerY, coordinateIterationOrder)) {
                         foundWithinY = true;
                     }
                 }
             }
             if ((allUnloaded && foundChunks)
-                    || (res.size() >= max
-                    && (searchRadiusSq > maxSearchRadiusSq || (searchRadiusSq > 1 && foundWithinY)))
+                    || (searchRadiusSq > maxSearchRadiusSq || (searchRadiusSq > 1 && foundWithinY))
             ) {
                 return res;
             }
@@ -98,16 +108,24 @@ public enum WorldScanner implements IWorldScanner {
             return Collections.emptyList();
         }
 
-        ChunkProviderClient chunkProvider = (ChunkProviderClient) ctx.world().getChunkProvider();
-        Chunk chunk = chunkProvider.getLoadedChunk(pos.x, pos.z);
+        ClientChunkCache chunkProvider = (ClientChunkCache) ctx.world().getChunkSource();
+        LevelChunk chunk = chunkProvider.getChunk(pos.x, pos.z, null, false);
         int playerY = ctx.playerFeet().getY();
 
         if (chunk == null || chunk.isEmpty()) {
             return Collections.emptyList();
         }
 
+        // How many positions we can track per block
+        HashMap<Block, Integer> countByType = new HashMap<>();
+        HashSet<Block> toFindAtYLevel = new HashSet<>();
+        for (BlockOptionalMeta bom : filter.blocks()) {
+            countByType.put(bom.getBlock(), max / filter.blocks().size());
+            toFindAtYLevel.add(bom.getBlock());
+        }
+
         ArrayList<BlockPos> res = new ArrayList<>();
-        scanChunkInto(pos.x << 4, pos.z << 4, chunk, filter, res, max, yLevelThreshold, playerY, DEFAULT_COORDINATE_ITERATION_ORDER);
+        scanChunkInto(pos.x << 4, pos.z << 4, ctx.world().dimensionType().minY(), chunk, filter, res, countByType, toFindAtYLevel, yLevelThreshold, playerY, IntStream.range(0, ctx.world().dimensionType().height() / 16).toArray());
         return res;
     }
 
@@ -118,7 +136,7 @@ public enum WorldScanner implements IWorldScanner {
 
     @Override
     public int repack(IPlayerContext ctx, int range) {
-        IChunkProvider chunkProvider = ctx.world().getChunkProvider();
+        ChunkSource chunkProvider = ctx.world().getChunkSource();
         ICachedWorld cachedWorld = ctx.worldData().getCachedWorld();
 
         BetterBlockPos playerPos = ctx.playerFeet();
@@ -134,7 +152,7 @@ public enum WorldScanner implements IWorldScanner {
         int queued = 0;
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                Chunk chunk = chunkProvider.getLoadedChunk(x, z);
+                LevelChunk chunk = chunkProvider.getChunk(x, z, false);
 
                 if (chunk != null && !chunk.isEmpty()) {
                     queued++;
@@ -146,37 +164,48 @@ public enum WorldScanner implements IWorldScanner {
         return queued;
     }
 
-    private boolean scanChunkInto(int chunkX, int chunkZ, Chunk chunk, BlockOptionalMetaLookup filter, Collection<BlockPos> result, int max, int yLevelThreshold, int playerY, int[] coordinateIterationOrder) {
-        ExtendedBlockStorage[] chunkInternalStorageArray = chunk.getBlockStorageArray();
+    private boolean scanChunkInto(int chunkX, int chunkZ, int minY, LevelChunk chunk, BlockOptionalMetaLookup filter, Collection<BlockPos> result, HashMap<Block, Integer> countRemainingByType, HashSet<Block> toFindWithinY, int yLevelThreshold, int playerY, int[] coordinateIterationOrder) {
+        LevelChunkSection[] chunkInternalStorageArray = chunk.getSections();
         boolean foundWithinY = false;
-        for (int yIndex = 0; yIndex < 16; yIndex++) {
-            int y0 = coordinateIterationOrder[yIndex];
-            ExtendedBlockStorage extendedblockstorage = chunkInternalStorageArray[y0];
-            if (extendedblockstorage == null) {
+        for (int y0 : coordinateIterationOrder) {
+            LevelChunkSection section = chunkInternalStorageArray[y0];
+            if (section == null || section.hasOnlyAir()) {
                 continue;
             }
             int yReal = y0 << 4;
-            IBlockStateContainer bsc = (IBlockStateContainer) extendedblockstorage.getData();
-            // storageArray uses an optimized algorithm that's faster than getAt
-            // creating this array and then using getAtPalette is faster than even getFast(int index)
-            int[] storage = bsc.storageArray();
-            final int imax = 1 << 12;
-            for (int i = 0; i < imax; i++) {
-                IBlockState state = bsc.getAtPalette(storage[i]);
-                if (filter.has(state)) {
-                    int y = yReal | ((i >> 8) & 15);
-                    if (result.size() >= max) {
-                        if (Math.abs(y - playerY) < yLevelThreshold) {
-                            foundWithinY = true;
-                        } else {
-                            if (foundWithinY) {
-                                // have found within Y in this chunk, so don't need to consider outside Y
-                                // TODO continue iteration to one more sorted Y coordinate block
-                                return true;
+            PalettedContainer<BlockState> bsc = section.getStates();
+            for (int yy = 0; yy < 16; yy++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++) {
+                        // We've filled ALL our blocks, maximally
+                        if (countRemainingByType.isEmpty()) {
+                            return foundWithinY;
+                        }
+                        BlockState state = bsc.get(x, yy, z);
+                        Block b = state.getBlock();
+                        if (filter.has(state) && countRemainingByType.containsKey(state.getBlock())) {
+                            int y = yReal | yy;
+                            if (Math.abs(y - playerY) < yLevelThreshold) {
+                                // This block is found within y, keep searching.
+                                toFindWithinY.remove(b);
+                                if (toFindWithinY.isEmpty()) {
+                                    foundWithinY = true;
+                                }
+                            } else {
+                                if (foundWithinY) {
+                                    // have found within Y in this chunk, so don't need to consider outside Y
+                                    // TODO continue iteration to one more sorted Y coordinate block
+                                    return true;
+                                }
+                            }
+                            result.add(new BlockPos(chunkX | x, y + minY, chunkZ | z));
+                            // Update count remaining
+                            countRemainingByType.put(b, countRemainingByType.get(b) - 1);
+                            if (countRemainingByType.get(b) <= 0) {
+                                countRemainingByType.remove(b);
                             }
                         }
                     }
-                    result.add(new BlockPos(chunkX | (i & 15), y, chunkZ | ((i >> 4) & 15)));
                 }
             }
         }

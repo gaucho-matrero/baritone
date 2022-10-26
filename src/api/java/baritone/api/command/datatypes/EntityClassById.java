@@ -19,32 +19,19 @@ package baritone.api.command.datatypes;
 
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.helpers.TabCompleteHelper;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityList;
-import net.minecraft.util.ResourceLocation;
-
 import java.util.stream.Stream;
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EntityType;
 
-public enum EntityClassById implements IDatatypeFor<Class<? extends Entity>> {
+public enum EntityClassById implements IDatatypeFor<EntityType> {
     INSTANCE;
 
     @Override
-    public Class<? extends Entity> get(IDatatypeContext ctx) throws CommandException {
+    public EntityType get(IDatatypeContext ctx) throws CommandException {
         ResourceLocation id = new ResourceLocation(ctx.getConsumer().getString());
-        Class<? extends Entity> entity;
-        try {
-            entity = EntityList.REGISTRY.getObject(id);
-        } catch (NoSuchFieldError e) {
-            // Forge removes EntityList.REGISTRY field and provides the getClass method as a replacement
-            // See https://github.com/MinecraftForge/MinecraftForge/blob/1.12.x/patches/minecraft/net/minecraft/entity/EntityList.java.patch
-            try {
-                entity = (Class<? extends Entity>) EntityList.class.getMethod("getClass", ResourceLocation.class).invoke(null, id);
-            } catch (Exception ex) {
-                throw new RuntimeException("EntityList.REGISTRY does not exist and failed to call the Forge-replacement method", ex);
-            }
-        }
-
-        if (entity == null) {
+        EntityType entity;
+        if ((entity = Registry.ENTITY_TYPE.getOptional(id).orElse(null)) == null) {
             throw new IllegalArgumentException("no entity found by that id");
         }
         return entity;
@@ -53,7 +40,7 @@ public enum EntityClassById implements IDatatypeFor<Class<? extends Entity>> {
     @Override
     public Stream<String> tabComplete(IDatatypeContext ctx) throws CommandException {
         return new TabCompleteHelper()
-                .append(EntityList.getEntityNameList().stream().map(Object::toString))
+                .append(Registry.ENTITY_TYPE.stream().map(Object::toString))
                 .filterPrefixNamespaced(ctx.getConsumer().getString())
                 .sortAlphabetically()
                 .stream();

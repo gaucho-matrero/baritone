@@ -2,9 +2,9 @@ package baritone.selection;
 
 import baritone.api.selection.ISelection;
 import baritone.api.utils.BetterBlockPos;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.phys.AABB;
 
 public class Selection implements ISelection {
 
@@ -13,7 +13,7 @@ public class Selection implements ISelection {
     private final BetterBlockPos min;
     private final BetterBlockPos max;
     private final Vec3i size;
-    private final AxisAlignedBB aabb;
+    private final AABB aabb;
 
     public Selection(BetterBlockPos pos1, BetterBlockPos pos2) {
         this.pos1 = pos1;
@@ -37,7 +37,7 @@ public class Selection implements ISelection {
                 max.z - min.z + 1
         );
 
-        this.aabb = new AxisAlignedBB(this.min, this.max.add(1, 1, 1));
+        this.aabb = new AABB(this.min, this.max.offset(1, 1, 1));
     }
 
     @Override
@@ -66,7 +66,7 @@ public class Selection implements ISelection {
     }
 
     @Override
-    public AxisAlignedBB aabb() {
+    public AABB aabb() {
         return aabb;
     }
 
@@ -83,15 +83,15 @@ public class Selection implements ISelection {
     /**
      * Since it might not be immediately obvious what this does, let me explain.
      * <p>
-     * Let's say you specify EnumFacing.UP, this functions returns if pos2 is the highest BlockPos.
-     * If you specify EnumFacing.DOWN, it returns if pos2 is the lowest BlockPos.
+     * Let's say you specify Direction.UP, this functions returns if pos2 is the highest BlockPos.
+     * If you specify Direction.DOWN, it returns if pos2 is the lowest BlockPos.
      *
      * @param facing The direction to check.
      * @return {@code true} if pos2 is further in that direction than pos1, {@code false} if it isn't, and something
      * else if they're both at the same position on that axis (it really doesn't matter)
      */
-    private boolean isPos2(EnumFacing facing) {
-        boolean negative = facing.getAxisDirection().getOffset() < 0;
+    private boolean isPos2(Direction facing) {
+        boolean negative = facing.getAxisDirection().getStep() < 0;
 
         switch (facing.getAxis()) {
             case X:
@@ -101,30 +101,30 @@ public class Selection implements ISelection {
             case Z:
                 return (pos2.z > pos1.z) ^ negative;
             default:
-                throw new IllegalStateException("Bad EnumFacing.Axis");
+                throw new IllegalStateException("Bad Direction.Axis");
         }
     }
 
     @Override
-    public ISelection expand(EnumFacing direction, int blocks) {
+    public ISelection expand(Direction direction, int blocks) {
         if (isPos2(direction)) {
-            return new Selection(pos1, pos2.offset(direction, blocks));
+            return new Selection(pos1, pos2.relative(direction, blocks));
         } else {
-            return new Selection(pos1.offset(direction, blocks), pos2);
+            return new Selection(pos1.relative(direction, blocks), pos2);
         }
     }
 
     @Override
-    public ISelection contract(EnumFacing direction, int blocks) {
+    public ISelection contract(Direction direction, int blocks) {
         if (isPos2(direction)) {
-            return new Selection(pos1.offset(direction, blocks), pos2);
+            return new Selection(pos1.relative(direction, blocks), pos2);
         } else {
-            return new Selection(pos1, pos2.offset(direction, blocks));
+            return new Selection(pos1, pos2.relative(direction, blocks));
         }
     }
 
     @Override
-    public ISelection shift(EnumFacing direction, int blocks) {
-        return new Selection(pos1.offset(direction, blocks), pos2.offset(direction, blocks));
+    public ISelection shift(Direction direction, int blocks) {
+        return new Selection(pos1.relative(direction, blocks), pos2.relative(direction, blocks));
     }
 }

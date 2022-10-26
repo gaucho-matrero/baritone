@@ -4,12 +4,15 @@
 run/
 autotest/
 dist/
+volderyarn/
 
 # Gradle
 build/
 .gradle/
 classes/
 *.class
+
+/out
 
 # IntelliJ Files
 .idea/
@@ -27,3 +30,5 @@ baritone_Client.launch
 # Copyright Files
 !/.idea/copyright/Baritone.xml
 !/.idea/copyright/profiles_settings.xml
+
+.vscode/launch.json

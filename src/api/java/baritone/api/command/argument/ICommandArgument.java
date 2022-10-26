@@ -19,7 +19,7 @@ package baritone.api.command.argument;
 
 import baritone.api.command.argparser.IArgParser;
 import baritone.api.command.exception.CommandInvalidTypeException;
-import net.minecraft.util.EnumFacing;
+import net.minecraft.core.Direction;
 
 /**
  * A {@link ICommandArgument} is an immutable object representing one command argument. It contains data on the index of
@@ -50,8 +50,8 @@ public interface ICommandArgument {
     /**
      * Gets an enum value from the enum class with the same name as this argument's value
      * <p>
-     * For example if you getEnum as an {@link EnumFacing}, and this argument's value is "up", it will return {@link
-     * EnumFacing#UP}
+     * For example if you getEnum as an {@link Direction}, and this argument's value is "up", it will return {@link
+     * Direction#UP}
      *
      * @param enumClass The enum class to search
      * @return An enum constant of that class with the same name as this argument's value

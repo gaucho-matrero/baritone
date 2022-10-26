@@ -36,6 +36,7 @@ import baritone.utils.PathingControlManager;
 import baritone.utils.player.PrimaryPlayerContext;
 import net.minecraft.client.Minecraft;
 
+import baritone.altoclef.AltoClefSettings;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,7 +57,7 @@ public class Baritone implements IBaritone {
     static {
         threadPool = new ThreadPoolExecutor(4, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
 
-        dir = new File(Minecraft.getMinecraft().gameDir, "baritone");
+        dir = new File(Minecraft.getInstance().gameDirectory, "baritone");
         if (!Files.exists(dir.toPath())) {
             try {
                 Files.createDirectories(dir.toPath());
@@ -68,7 +69,6 @@ public class Baritone implements IBaritone {
 
     private PathingBehavior pathingBehavior;
     private LookBehavior lookBehavior;
-    private MemoryBehavior memoryBehavior;
     private InventoryBehavior inventoryBehavior;
     private InputOverrideHandler inputOverrideHandler;
 
@@ -100,7 +100,6 @@ public class Baritone implements IBaritone {
             // the Behavior constructor calls baritone.registerBehavior(this) so this populates the behaviors arraylist
             pathingBehavior = new PathingBehavior(this);
             lookBehavior = new LookBehavior(this);
-            memoryBehavior = new MemoryBehavior(this);
             inventoryBehavior = new InventoryBehavior(this);
             inputOverrideHandler = new InputOverrideHandler(this);
         }
@@ -149,10 +148,6 @@ public class Baritone implements IBaritone {
     @Override
     public IPlayerContext getPlayerContext() {
         return this.playerContext;
-    }
-
-    public MemoryBehavior getMemoryBehavior() {
-        return this.memoryBehavior;
     }
 
     @Override
@@ -217,7 +212,7 @@ public class Baritone implements IBaritone {
         new Thread(() -> {
             try {
                 Thread.sleep(100);
-                Helper.mc.addScheduledTask(() -> Helper.mc.displayGuiScreen(new GuiClick()));
+                Helper.mc.execute(() -> Helper.mc.setScreen(new GuiClick()));
             } catch (Exception ignored) {}
         }).start();
     }
