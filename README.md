@@ -1,4 +1,7 @@
-# Baritone
+# Baritone for altoclef
+
+Please visit the 1.17.1 branch for updates
+
 <p align="center">
   <a href="https://github.com/cabaletta/baritone/releases/"><img src="https://img.shields.io/github/downloads/cabaletta/baritone/total.svg" alt="GitHub All Releases"/></a>
 </p>
