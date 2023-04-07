@@ -20,9 +20,6 @@ package baritone.cache;
 import baritone.Baritone;
 import baritone.api.cache.ICachedRegion;
 import baritone.api.utils.BlockUtils;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.util.math.BlockPos;
-
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +27,9 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.dimension.DimensionType;
 
 /**
  * @author Brady
@@ -43,7 +43,7 @@ public final class CachedRegion implements ICachedRegion {
     /**
      * Magic value to detect invalid cache files, or incompatible cache files saved in an old version of Baritone
      */
-    private static final int CACHED_REGION_MAGIC = 456022910;
+    private static final int CACHED_REGION_MAGIC = 456022911;
 
     /**
      * All of the chunks in this region: A 32x32 array of them.
@@ -60,14 +60,14 @@ public final class CachedRegion implements ICachedRegion {
      */
     private final int z;
 
-    private final int dimension;
+    private final DimensionType dimension;
 
     /**
      * Has this region been modified since its most recent load or save
      */
     private boolean hasUnsavedChanges;
 
-    CachedRegion(int x, int z, int dimension) {
+    CachedRegion(int x, int z, DimensionType dimension) {
         this.x = x;
         this.z = z;
         this.hasUnsavedChanges = false;
@@ -75,10 +75,11 @@ public final class CachedRegion implements ICachedRegion {
     }
 
     @Override
-    public final IBlockState getBlock(int x, int y, int z) {
+    public final BlockState getBlock(int x, int y, int z) {
+        int adjY = y - dimension.minY();
         CachedChunk chunk = chunks[x >> 4][z >> 4];
         if (chunk != null) {
-            return chunk.getBlock(x & 15, y, z & 15, dimension);
+            return chunk.getBlock(x & 15, adjY, z & 15, dimension);
         }
         return null;
     }
@@ -142,7 +143,7 @@ public final class CachedRegion implements ICachedRegion {
                             byte[] chunkBytes = chunk.toByteArray();
                             out.write(chunkBytes);
                             // Messy, but fills the empty 0s that should be trailing to fill up the space.
-                            out.write(new byte[CachedChunk.SIZE_IN_BYTES - chunkBytes.length]);
+                            out.write(new byte[chunk.sizeInBytes - chunkBytes.length]);
                         }
                     }
                 }
@@ -165,7 +166,7 @@ public final class CachedRegion implements ICachedRegion {
                                 out.writeShort(entry.getValue().size());
                                 for (BlockPos pos : entry.getValue()) {
                                     out.writeByte((byte) (pos.getZ() << 4 | pos.getX()));
-                                    out.writeByte((byte) (pos.getY()));
+                                    out.writeInt(pos.getY()-dimension.minY());
                                 }
                             }
                         }
@@ -216,18 +217,19 @@ public final class CachedRegion implements ICachedRegion {
                 boolean[][] present = new boolean[32][32];
                 BitSet[][] bitSets = new BitSet[32][32];
                 Map<String, List<BlockPos>>[][] location = new Map[32][32];
-                IBlockState[][][] overview = new IBlockState[32][32][];
+                BlockState[][][] overview = new BlockState[32][32][];
                 long[][] cacheTimestamp = new long[32][32];
                 for (int x = 0; x < 32; x++) {
                     for (int z = 0; z < 32; z++) {
                         int isChunkPresent = in.read();
                         switch (isChunkPresent) {
                             case CHUNK_PRESENT:
-                                byte[] bytes = new byte[CachedChunk.SIZE_IN_BYTES];
+                                byte[] bytes = new byte[CachedChunk.sizeInBytes(CachedChunk.size(dimension.height()))];
                                 in.readFully(bytes);
                                 bitSets[x][z] = BitSet.valueOf(bytes);
                                 location[x][z] = new HashMap<>();
-                                overview[x][z] = new IBlockState[256];
+                                //this is top block in columns
+                                overview[x][z] = new BlockState[256];
                                 present[x][z] = true;
                                 break;
                             case CHUNK_NOT_PRESENT:
@@ -241,7 +243,7 @@ public final class CachedRegion implements ICachedRegion {
                     for (int z = 0; z < 32; z++) {
                         if (present[x][z]) {
                             for (int i = 0; i < 256; i++) {
-                                overview[x][z][i] = BlockUtils.stringToBlockRequired(in.readUTF()).getDefaultState();
+                                overview[x][z][i] = BlockUtils.stringToBlockRequired(in.readUTF()).defaultBlockState();
                             }
                         }
                     }
@@ -268,8 +270,8 @@ public final class CachedRegion implements ICachedRegion {
                                     byte xz = in.readByte();
                                     int X = xz & 0x0f;
                                     int Z = (xz >>> 4) & 0x0f;
-                                    int Y = in.readByte() & 0xff;
-                                    locs.add(new BlockPos(X, Y, Z));
+                                    int Y = in.readInt();
+                                    locs.add(new BlockPos(X, Y+dimension.minY(), Z));
                                 }
                             }
                         }
@@ -290,7 +292,7 @@ public final class CachedRegion implements ICachedRegion {
                             int regionZ = this.z;
                             int chunkX = x + 32 * regionX;
                             int chunkZ = z + 32 * regionZ;
-                            this.chunks[x][z] = new CachedChunk(chunkX, chunkZ, bitSets[x][z], overview[x][z], location[x][z], cacheTimestamp[x][z]);
+                            this.chunks[x][z] = new CachedChunk(chunkX, chunkZ, dimension.height(), bitSets[x][z], overview[x][z], location[x][z], cacheTimestamp[x][z]);
                         }
                     }
                 }

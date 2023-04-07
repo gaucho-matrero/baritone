@@ -18,7 +18,7 @@
 package baritone.api.selection;
 
 import baritone.api.utils.BetterBlockPos;
-import net.minecraft.util.EnumFacing;
+import net.minecraft.core.Direction;
 
 /**
  * The selection manager handles setting Baritone's selections. You can set the selection here, as well as retrieving
@@ -87,7 +87,7 @@ public interface ISelectionManager {
      * @param blocks    How many blocks to expand it.
      * @return The new selection, expanded as specified.
      */
-    ISelection expand(ISelection selection, EnumFacing direction, int blocks);
+    ISelection expand(ISelection selection, Direction direction, int blocks);
 
     /**
      * Replaces the specified {@link ISelection} with one contracted in the specified direction by the specified number
@@ -101,7 +101,7 @@ public interface ISelectionManager {
      * @param blocks    How many blocks to contract it.
      * @return The new selection, contracted as specified.
      */
-    ISelection contract(ISelection selection, EnumFacing direction, int blocks);
+    ISelection contract(ISelection selection, Direction direction, int blocks);
 
     /**
      * Replaces the specified {@link ISelection} with one shifted in the specified direction by the specified number of
@@ -112,5 +112,5 @@ public interface ISelectionManager {
      * @param blocks    How many blocks to shift it.
      * @return The new selection, shifted as specified.
      */
-    ISelection shift(ISelection selection, EnumFacing direction, int blocks);
+    ISelection shift(ISelection selection, Direction direction, int blocks);
 }

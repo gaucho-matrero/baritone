@@ -17,7 +17,7 @@
 
 package baritone.api.schematic;
 
-import net.minecraft.block.state.IBlockState;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class WallsSchematic extends MaskSchematic {
 
@@ -26,7 +26,7 @@ public class WallsSchematic extends MaskSchematic {
     }
 
     @Override
-    protected boolean partOfMask(int x, int y, int z, IBlockState currentState) {
+    protected boolean partOfMask(int x, int y, int z, BlockState currentState) {
         return x == 0 || z == 0 || x == widthX() - 1 || z == lengthZ() - 1;
     }
 }

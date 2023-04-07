@@ -19,11 +19,14 @@ package baritone.api.utils;
 
 import baritone.api.BaritoneAPI;
 import baritone.api.Settings;
-import net.minecraft.block.Block;
-import net.minecraft.item.Item;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.Vec3i;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Registry;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -44,13 +47,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static net.minecraft.client.Minecraft.getMinecraft;
 
 public class SettingsUtil {
 
-    private static final Path SETTINGS_PATH = getMinecraft().gameDir.toPath().resolve("baritone").resolve("settings.txt");
+    private static final Path SETTINGS_PATH = Minecraft.getInstance().gameDirectory.toPath().resolve("baritone").resolve("settings.txt");
     private static final Pattern SETTING_PATTERN = Pattern.compile("^(?<setting>[^ ]+) +(?<value>.+)"); // key and value split by the first space
     private static final String[] JAVA_ONLY_SETTINGS = {"logger", "notifier", "toaster"};
+
 
     private static boolean isComment(String line) {
         return line.startsWith("#") || line.startsWith("//");
@@ -176,7 +179,7 @@ public class SettingsUtil {
     /**
      * This should always be the same as whether the setting can be parsed from or serialized to a string
      *
-     * @param the setting
+     * @param setting The Setting
      * @return true if the setting can not be set or read by the user
      */
     public static boolean javaOnlySetting(Settings.Setting setting) {
@@ -232,7 +235,7 @@ public class SettingsUtil {
         FLOAT(Float.class, Float::parseFloat),
         LONG(Long.class, Long::parseLong),
         STRING(String.class, String::new),
-        ENUMFACING(EnumFacing.class, EnumFacing::byName),
+        DIRECTION(Direction.class, Direction::byName),
         COLOR(
                 Color.class,
                 str -> new Color(Integer.parseInt(str.split(",")[0]), Integer.parseInt(str.split(",")[1]), Integer.parseInt(str.split(",")[2])),
@@ -250,15 +253,14 @@ public class SettingsUtil {
         ),
         ITEM(
                 Item.class,
-                str -> Item.getByNameOrId(str.trim()),
-                item -> Item.REGISTRY.getNameForObject(item).toString()
+                str -> BuiltInRegistries.ITEM.get(new ResourceLocation(str.trim())), // TODO this now returns AIR on failure instead of null, is that an issue?
+                item -> BuiltInRegistries.ITEM.getKey(item).toString()
         ),
         LIST() {
             @Override
             public Object parse(ParserContext context, String raw) {
                 Type type = ((ParameterizedType) context.getSetting().getType()).getActualTypeArguments()[0];
                 Parser parser = Parser.getParser(type);
-
                 return Stream.of(raw.split(","))
                         .map(s -> parser.parse(context, s))
                         .collect(Collectors.toList());
@@ -299,7 +301,7 @@ public class SettingsUtil {
                 Parser keyParser = Parser.getParser(keyType);
                 Parser valueParser = Parser.getParser(valueType);
 
-                return ((Map<?,?>) value).entrySet().stream()
+                return ((Map<?, ?>) value).entrySet().stream()
                         .map(o -> keyParser.toString(context, o.getKey()) + "->" + valueParser.toString(context, o.getValue()))
                         .collect(Collectors.joining(","));
             }

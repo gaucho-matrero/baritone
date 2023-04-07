@@ -18,9 +18,9 @@
 package baritone.api.pathing.goals;
 
 import baritone.api.utils.SettingsUtil;
-import it.unimi.dsi.fastutil.doubles.DoubleOpenHashSet;
 import it.unimi.dsi.fastutil.doubles.DoubleIterator;
-import net.minecraft.util.math.BlockPos;
+import it.unimi.dsi.fastutil.doubles.DoubleOpenHashSet;
+import net.minecraft.core.BlockPos;
 
 import java.util.Arrays;
 

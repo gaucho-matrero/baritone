@@ -21,21 +21,20 @@ import baritone.api.utils.NotificationHelper;
 import baritone.api.utils.SettingsUtil;
 import baritone.api.utils.TypeUtils;
 import baritone.api.utils.gui.BaritoneToast;
-import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
-import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.util.text.ITextComponent;
-
+import net.minecraft.core.Vec3i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import java.awt.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.List;
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Baritone's settings. Settings apply to all Baritone instances.
@@ -48,6 +47,11 @@ public final class Settings {
      * Allow Baritone to break blocks
      */
     public final Setting<Boolean> allowBreak = new Setting<>(true);
+
+    /**
+     * Blocks that baritone will be allowed to break even with allowBreak set to false
+     */
+    public final Setting<List<Block>> allowBreakAnyway = new Setting<>(new ArrayList<>());
 
     /**
      * Allow Baritone to sprint
@@ -103,6 +107,13 @@ public final class Settings {
     public final Setting<Double> walkOnWaterOnePenalty = new Setting<>(3D);
 
     /**
+     * Don't allow breaking blocks next to liquids.
+     * <p>
+     * Enable if you have mods adding custom fluid physics.
+     */
+    public final Setting<Boolean> strictLiquidCheck = new Setting<>(false);
+
+    /**
      * Allow Baritone to fall arbitrary distances and place a water bucket beneath it.
      * Reliability: questionable.
      */
@@ -111,6 +122,8 @@ public final class Settings {
     /**
      * Allow Baritone to assume it can walk on still water just like any other block.
      * This functionality is assumed to be provided by a separate library that might have imported Baritone.
+     * <p>
+     * Note: This will prevent some usage of the frostwalker enchantment, like pillaring up from water.
      */
     public final Setting<Boolean> assumeWalkOnWater = new Setting<>(false);
 
@@ -174,10 +187,10 @@ public final class Settings {
      * Blocks that Baritone is allowed to place (as throwaway, for sneak bridging, pillaring, etc.)
      */
     public final Setting<List<Item>> acceptableThrowawayItems = new Setting<>(new ArrayList<>(Arrays.asList(
-            Item.getItemFromBlock(Blocks.DIRT),
-            Item.getItemFromBlock(Blocks.COBBLESTONE),
-            Item.getItemFromBlock(Blocks.NETHERRACK),
-            Item.getItemFromBlock(Blocks.STONE)
+            Blocks.DIRT.asItem(),
+            Blocks.COBBLESTONE.asItem(),
+            Blocks.NETHERRACK.asItem(),
+            Blocks.STONE.asItem()
     )));
 
     /**
@@ -191,7 +204,7 @@ public final class Settings {
      * Blocks that Baritone is not allowed to break
      */
     public final Setting<List<Block>> blocksToDisallowBreaking = new Setting<>(new ArrayList<>(
-        // Leave Empty by Default
+            // Leave Empty by Default
     ));
 
     /**
@@ -200,11 +213,8 @@ public final class Settings {
     public final Setting<List<Block>> blocksToAvoidBreaking = new Setting<>(new ArrayList<>(Arrays.asList( // TODO can this be a HashSet or ImmutableSet?
             Blocks.CRAFTING_TABLE,
             Blocks.FURNACE,
-            Blocks.LIT_FURNACE,
             Blocks.CHEST,
-            Blocks.TRAPPED_CHEST,
-            Blocks.STANDING_SIGN,
-            Blocks.WALL_SIGN
+            Blocks.TRAPPED_CHEST
     )));
 
     /**
@@ -234,6 +244,8 @@ public final class Settings {
      * A mapping of blocks to blocks treated as correct in their position
      * <p>
      * If a schematic asks for a block on this mapping, all blocks on the mapped list will be accepted at that location as well
+     * <p>
+     * Syntax same as <a href="https://baritone.leijurv.com/baritone/api/Settings.html#buildSubstitutes">buildSubstitutes</a>
      */
     public final Setting<Map<Block, List<Block>>> buildValidSubstitutes = new Setting<>(new HashMap<>());
 
@@ -241,6 +253,15 @@ public final class Settings {
      * A mapping of blocks to blocks to be built instead
      * <p>
      * If a schematic asks for a block on this mapping, Baritone will place the first placeable block in the mapped list
+     * <p>
+     * Usage Syntax:
+     * <pre>
+     *      sourceblockA->blockToSubstituteA1,blockToSubstituteA2,...blockToSubstituteAN,sourceBlockB->blockToSubstituteB1,blockToSubstituteB2,...blockToSubstituteBN,...sourceBlockX->blockToSubstituteX1,blockToSubstituteX2...blockToSubstituteXN
+     * </pre>
+     * Example:
+     * <pre>
+     *     stone->cobblestone,andesite,oak_planks->birch_planks,acacia_planks,glass
+     * </pre>
      */
     public final Setting<Map<Block, List<Block>>> buildSubstitutes = new Setting<>(new HashMap<>());
 
@@ -262,6 +283,12 @@ public final class Settings {
      * If this is true, the builder will ignore directionality of certain blocks like glazed terracotta.
      */
     public final Setting<Boolean> buildIgnoreDirection = new Setting<>(false);
+
+    /**
+     * A list of names of block properties the builder will ignore.
+     */
+    public final Setting<List<String>> buildIgnoreProperties = new Setting<>(new ArrayList<>(Arrays.asList(
+    )));
 
     /**
      * If this setting is true, Baritone will never break a block that is adjacent to an unsupported falling block.
@@ -328,6 +355,11 @@ public final class Settings {
     public final Setting<Integer> rightClickSpeed = new Setting<>(4);
 
     /**
+     * How many degrees to randomize the yaw every tick. Set to 0 to disable
+     */
+    public final Setting<Double> randomLooking113 = new Setting<>(2d);
+
+    /**
      * Block reach distance
      */
     public final Setting<Float> blockReachDistance = new Setting<>(4.5f);
@@ -385,6 +417,9 @@ public final class Settings {
      */
     public final Setting<Double> mobSpawnerAvoidanceCoefficient = new Setting<>(2.0);
 
+    /**
+     * Distance to avoid mob spawners.
+     */
     public final Setting<Integer> mobSpawnerAvoidanceRadius = new Setting<>(16);
 
     /**
@@ -394,6 +429,9 @@ public final class Settings {
      */
     public final Setting<Double> mobAvoidanceCoefficient = new Setting<>(1.5);
 
+    /**
+     * Distance to avoid mobs.
+     */
     public final Setting<Integer> mobAvoidanceRadius = new Setting<>(8);
 
     /**
@@ -544,6 +582,17 @@ public final class Settings {
      */
     public final Setting<Long> slowPathTimeoutMS = new Setting<>(40000L);
 
+
+    /**
+     * allows baritone to save bed waypoints when interacting with beds
+     */
+    public final Setting<Boolean> doBedWaypoints = new Setting<>(true);
+
+    /**
+     * allows baritone to save death waypoints
+     */
+    public final Setting<Boolean> doDeathWaypoints = new Setting<>(true);
+
     /**
      * The big one. Download all chunks in simplified 2-bit format and save them for better very-long-distance pathing.
      */
@@ -559,13 +608,6 @@ public final class Settings {
      * @see <a href="https://github.com/cabaletta/baritone/issues/248">Issue #248</a>
      */
     public final Setting<Boolean> pruneRegionsFromRAM = new Setting<>(true);
-
-    /**
-     * Remember the contents of containers (chests, echests, furnaces)
-     * <p>
-     * Really buggy since the packet stuff is multithreaded badly thanks to brady
-     */
-    public final Setting<Boolean> containerMemory = new Setting<>(false);
 
     /**
      * Fill in blocks behind you
@@ -799,6 +841,7 @@ public final class Settings {
 
     /**
      * Sets the minimum y level whilst mining - set to 0 to turn off.
+     * if world has negative y values, subtract the min world height to get the value to put here
      */
     public final Setting<Integer> minYLevelWhileMining = new Setting<>(0);
 
@@ -886,7 +929,7 @@ public final class Settings {
     /**
      * Only build the selected part of schematics
      */
-     public final Setting<Boolean> buildOnlySelection = new Setting<>(false);
+    public final Setting<Boolean> buildOnlySelection = new Setting<>(false);
 
     /**
      * How far to move before repeating the build. 0 to disable repeating on a certain axis, 0,0,0 to disable entirely
@@ -1020,7 +1063,7 @@ public final class Settings {
     /**
      * What Y level to go to for legit strip mining
      */
-    public final Setting<Integer> legitMineYLevel = new Setting<>(11);
+    public final Setting<Integer> legitMineYLevel = new Setting<>(-59);
 
     /**
      * Magically see ores that are separated diagonally from existing ores. Basically like mining around the ores that it finds
@@ -1098,7 +1141,7 @@ public final class Settings {
      * via {@link Consumer#andThen(Consumer)} or it can completely be overriden via setting
      * {@link Setting#value};
      */
-    public final Setting<Consumer<ITextComponent>> logger = new Setting<>(Minecraft.getMinecraft().ingameGUI.getChatGUI()::printChatMessage);
+    public final Setting<Consumer<Component>> logger = new Setting<>(msg -> Minecraft.getInstance().gui.getChat().addMessage(msg));
 
     /**
      * The function that is called when Baritone will send a desktop notification. This function can be added to
@@ -1112,7 +1155,12 @@ public final class Settings {
      * via {@link Consumer#andThen(Consumer)} or it can completely be overriden via setting
      * {@link Setting#value};
      */
-    public final Setting<BiConsumer<ITextComponent, ITextComponent>> toaster = new Setting<>(BaritoneToast::addOrUpdate);
+    public final Setting<BiConsumer<Component, Component>> toaster = new Setting<>(BaritoneToast::addOrUpdate);
+
+    /**
+     * Print out ALL command exceptions as a stack trace to stdout, even simple syntax errors
+     */
+    public final Setting<Boolean> verboseCommandExceptions = new Setting<>(false);
 
     /**
      * The size of the box that is rendered when the current goal is a GoalYLevel

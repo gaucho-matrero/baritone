@@ -19,9 +19,8 @@ package baritone.utils.schematic;
 
 import baritone.api.schematic.AbstractSchematic;
 import baritone.api.schematic.IStaticSchematic;
-import net.minecraft.block.state.IBlockState;
-
 import java.util.List;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Default implementation of {@link IStaticSchematic}
@@ -31,20 +30,20 @@ import java.util.List;
  */
 public class StaticSchematic extends AbstractSchematic implements IStaticSchematic {
 
-    protected IBlockState[][][] states;
+    protected BlockState[][][] states;
 
     @Override
-    public IBlockState desiredState(int x, int y, int z, IBlockState current, List<IBlockState> approxPlaceable) {
+    public BlockState desiredState(int x, int y, int z, BlockState current, List<BlockState> approxPlaceable) {
         return this.states[x][z][y];
     }
 
     @Override
-    public IBlockState getDirect(int x, int y, int z) {
+    public BlockState getDirect(int x, int y, int z) {
         return this.states[x][z][y];
     }
 
     @Override
-    public IBlockState[] getColumn(int x, int z) {
+    public BlockState[] getColumn(int x, int z) {
         return this.states[x][z];
     }
 }
