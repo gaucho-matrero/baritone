@@ -18,253 +18,141 @@
 package baritone.api.utils;
 
 import baritone.api.utils.accessor.IItemStack;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import net.minecraft.block.*;
-import net.minecraft.block.properties.IProperty;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.ResourceLocation;
+import io.netty.util.concurrent.ThreadPerTaskExecutor;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.progress.ChunkProgressListener;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.VanillaPackResources;
+import net.minecraft.server.packs.repository.ServerPacksSource;
+import net.minecraft.server.packs.resources.MultiPackResourceManager;
+import net.minecraft.server.packs.resources.ReloadableResourceManager;
+import net.minecraft.util.Unit;
+import net.minecraft.world.RandomSequences;
+import net.minecraft.world.flag.FeatureFlagSet;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.CustomSpawner;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.storage.LevelStorageSource;
+import net.minecraft.world.level.storage.ServerLevelData;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootContext;
+import net.minecraft.world.level.storage.loot.LootDataManager;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.Vec3;
+import sun.misc.Unsafe;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.regex.MatchResult;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class BlockOptionalMeta {
+    // id or id[] or id[properties] where id and properties are any text with at least one character
+    private static final Pattern PATTERN = Pattern.compile("^(?<id>.+?)(?:\\[(?<properties>.+?)?\\])?$");
 
     private final Block block;
-    private final int meta;
-    private final boolean noMeta;
-    private final Set<IBlockState> blockstates;
+    private final String propertiesDescription; // exists so toString() can return something more useful than a list of all blockstates
+    private final Set<BlockState> blockstates;
     private final ImmutableSet<Integer> stateHashes;
     private final ImmutableSet<Integer> stackHashes;
-    private static final Pattern pattern = Pattern.compile("^(.+?)(?::(\\d+))?$");
-    private static final Map<Object, Object> normalizations;
+    private static LootDataManager lootTables;
+    private static Map<Block, List<Item>> drops = new HashMap<>();
 
-    public BlockOptionalMeta(@Nonnull Block block, @Nullable Integer meta) {
+    public BlockOptionalMeta(@Nonnull Block block) {
         this.block = block;
-        this.noMeta = meta == null;
-        this.meta = noMeta ? 0 : meta;
-        this.blockstates = getStates(block, meta);
+        this.propertiesDescription = "{}";
+        this.blockstates = getStates(block, Collections.emptyMap());
         this.stateHashes = getStateHashes(blockstates);
         this.stackHashes = getStackHashes(blockstates);
     }
 
-    public BlockOptionalMeta(@Nonnull Block block) {
-        this(block, null);
-    }
-
     public BlockOptionalMeta(@Nonnull String selector) {
-        Matcher matcher = pattern.matcher(selector);
+        Matcher matcher = PATTERN.matcher(selector);
 
         if (!matcher.find()) {
             throw new IllegalArgumentException("invalid block selector");
         }
 
-        MatchResult matchResult = matcher.toMatchResult();
-        noMeta = matchResult.group(2) == null;
+        block = BlockUtils.stringToBlockRequired(matcher.group("id"));
 
-        ResourceLocation id = new ResourceLocation(matchResult.group(1));
+        String props = matcher.group("properties");
+        Map<Property<?>, ?> properties = props == null || props.equals("") ? Collections.emptyMap() : parseProperties(block, props);
 
-        if (!Block.REGISTRY.containsKey(id)) {
-            throw new IllegalArgumentException("Invalid block ID");
-        }
-
-        block = Block.REGISTRY.getObject(id);
-        meta = noMeta ? 0 : Integer.parseInt(matchResult.group(2));
-        blockstates = getStates(block, getMeta());
+        propertiesDescription = props == null ? "{}" : "{" + props.replace("=", ":") + "}";
+        blockstates = getStates(block, properties);
         stateHashes = getStateHashes(blockstates);
         stackHashes = getStackHashes(blockstates);
     }
 
-    static {
-        Map<Object, Object> _normalizations = new HashMap<>();
-        Consumer<Enum> put = instance -> _normalizations.put(instance.getClass(), instance);
-        put.accept(EnumFacing.NORTH);
-        put.accept(EnumFacing.Axis.Y);
-        put.accept(BlockLog.EnumAxis.Y);
-        put.accept(BlockStairs.EnumHalf.BOTTOM);
-        put.accept(BlockStairs.EnumShape.STRAIGHT);
-        put.accept(BlockLever.EnumOrientation.DOWN_X);
-        put.accept(BlockDoublePlant.EnumBlockHalf.LOWER);
-        put.accept(BlockSlab.EnumBlockHalf.BOTTOM);
-        put.accept(BlockDoor.EnumDoorHalf.LOWER);
-        put.accept(BlockDoor.EnumHingePosition.LEFT);
-        put.accept(BlockBed.EnumPartType.HEAD);
-        put.accept(BlockRailBase.EnumRailDirection.NORTH_SOUTH);
-        put.accept(BlockTrapDoor.DoorHalf.BOTTOM);
-        _normalizations.put(BlockBanner.ROTATION, 0);
-        _normalizations.put(BlockBed.OCCUPIED, false);
-        _normalizations.put(BlockBrewingStand.HAS_BOTTLE[0], false);
-        _normalizations.put(BlockBrewingStand.HAS_BOTTLE[1], false);
-        _normalizations.put(BlockBrewingStand.HAS_BOTTLE[2], false);
-        _normalizations.put(BlockButton.POWERED, false);
-        // _normalizations.put(BlockCactus.AGE, 0);
-        // _normalizations.put(BlockCauldron.LEVEL, 0);
-        // _normalizations.put(BlockChorusFlower.AGE, 0);
-        _normalizations.put(BlockChorusPlant.NORTH, false);
-        _normalizations.put(BlockChorusPlant.EAST, false);
-        _normalizations.put(BlockChorusPlant.SOUTH, false);
-        _normalizations.put(BlockChorusPlant.WEST, false);
-        _normalizations.put(BlockChorusPlant.UP, false);
-        _normalizations.put(BlockChorusPlant.DOWN, false);
-        // _normalizations.put(BlockCocoa.AGE, 0);
-        // _normalizations.put(BlockCrops.AGE, 0);
-        _normalizations.put(BlockDirt.SNOWY, false);
-        _normalizations.put(BlockDoor.OPEN, false);
-        _normalizations.put(BlockDoor.POWERED, false);
-        // _normalizations.put(BlockFarmland.MOISTURE, 0);
-        _normalizations.put(BlockFence.NORTH, false);
-        _normalizations.put(BlockFence.EAST, false);
-        _normalizations.put(BlockFence.WEST, false);
-        _normalizations.put(BlockFence.SOUTH, false);
-        // _normalizations.put(BlockFenceGate.POWERED, false);
-        // _normalizations.put(BlockFenceGate.IN_WALL, false);
-        _normalizations.put(BlockFire.AGE, 0);
-        _normalizations.put(BlockFire.NORTH, false);
-        _normalizations.put(BlockFire.EAST, false);
-        _normalizations.put(BlockFire.SOUTH, false);
-        _normalizations.put(BlockFire.WEST, false);
-        _normalizations.put(BlockFire.UPPER, false);
-        // _normalizations.put(BlockFrostedIce.AGE, 0);
-        _normalizations.put(BlockGrass.SNOWY, false);
-        // _normalizations.put(BlockHopper.ENABLED, true);
-        // _normalizations.put(BlockLever.POWERED, false);
-        // _normalizations.put(BlockLiquid.LEVEL, 0);
-        // _normalizations.put(BlockMycelium.SNOWY, false);
-        // _normalizations.put(BlockNetherWart.AGE, false);
-        _normalizations.put(BlockLeaves.CHECK_DECAY, false);
-        // _normalizations.put(BlockLeaves.DECAYABLE, false);
-        // _normalizations.put(BlockObserver.POWERED, false);
-        _normalizations.put(BlockPane.NORTH, false);
-        _normalizations.put(BlockPane.EAST, false);
-        _normalizations.put(BlockPane.WEST, false);
-        _normalizations.put(BlockPane.SOUTH, false);
-        // _normalizations.put(BlockPistonBase.EXTENDED, false);
-        // _normalizations.put(BlockPressurePlate.POWERED, false);
-        // _normalizations.put(BlockPressurePlateWeighted.POWER, false);
-        _normalizations.put(BlockQuartz.EnumType.LINES_X, BlockQuartz.EnumType.LINES_Y);
-        _normalizations.put(BlockQuartz.EnumType.LINES_Z, BlockQuartz.EnumType.LINES_Y);
-        // _normalizations.put(BlockRailDetector.POWERED, false);
-        // _normalizations.put(BlockRailPowered.POWERED, false);
-        _normalizations.put(BlockRedstoneWire.NORTH, false);
-        _normalizations.put(BlockRedstoneWire.EAST, false);
-        _normalizations.put(BlockRedstoneWire.SOUTH, false);
-        _normalizations.put(BlockRedstoneWire.WEST, false);
-        // _normalizations.put(BlockReed.AGE, false);
-        _normalizations.put(BlockSapling.STAGE, 0);
-        _normalizations.put(BlockSkull.NODROP, false);
-        _normalizations.put(BlockStandingSign.ROTATION, 0);
-        _normalizations.put(BlockStem.AGE, 0);
-        _normalizations.put(BlockTripWire.NORTH, false);
-        _normalizations.put(BlockTripWire.EAST, false);
-        _normalizations.put(BlockTripWire.WEST, false);
-        _normalizations.put(BlockTripWire.SOUTH, false);
-        _normalizations.put(BlockVine.NORTH, false);
-        _normalizations.put(BlockVine.EAST, false);
-        _normalizations.put(BlockVine.SOUTH, false);
-        _normalizations.put(BlockVine.WEST, false);
-        _normalizations.put(BlockVine.UP, false);
-        _normalizations.put(BlockWall.UP, false);
-        _normalizations.put(BlockWall.NORTH, false);
-        _normalizations.put(BlockWall.EAST, false);
-        _normalizations.put(BlockWall.WEST, false);
-        _normalizations.put(BlockWall.SOUTH, false);
-        normalizations = Collections.unmodifiableMap(_normalizations);
-    }
-
-    public static <C extends Comparable<C>, P extends IProperty<C>> P castToIProperty(Object value) {
+    private static <C extends Comparable<C>, P extends Property<C>> P castToIProperty(Object value) {
         //noinspection unchecked
         return (P) value;
     }
 
-    public static <C extends Comparable<C>, P extends IProperty<C>> C castToIPropertyValue(P iproperty, Object value) {
-        //noinspection unchecked
-        return (C) value;
-    }
-
-    /**
-     * Normalizes the specified blockstate by setting meta-affecting properties which
-     * are not being targeted by the meta parameter to their default values.
-     * <p>
-     * For example, block variant/color is the primary target for the meta value, so properties
-     * such as rotation/facing direction will be set to default values in order to nullify
-     * the effect that they have on the state's meta value.
-     *
-     * @param state The state to normalize
-     * @return The normalized block state
-     */
-    public static IBlockState normalize(IBlockState state) {
-        IBlockState newState = state;
-
-        for (IProperty<?> property : state.getProperties().keySet()) {
-            Class<?> valueClass = property.getValueClass();
-            if (normalizations.containsKey(property)) {
-                try {
-                    newState = newState.withProperty(
-                            castToIProperty(property),
-                            castToIPropertyValue(property, normalizations.get(property))
-                    );
-                } catch (IllegalArgumentException ignored) {}
-            } else if (normalizations.containsKey(state.getValue(property))) {
-                try {
-                    newState = newState.withProperty(
-                            castToIProperty(property),
-                            castToIPropertyValue(property, normalizations.get(state.getValue(property)))
-                    );
-                } catch (IllegalArgumentException ignored) {}
-            } else if (normalizations.containsKey(valueClass)) {
-                try {
-                    newState = newState.withProperty(
-                            castToIProperty(property),
-                            castToIPropertyValue(property, normalizations.get(valueClass))
-                    );
-                } catch (IllegalArgumentException ignored) {}
+    private static Map<Property<?>, ?> parseProperties(Block block, String raw) {
+        ImmutableMap.Builder<Property<?>, Object> builder = ImmutableMap.builder();
+        for (String pair : raw.split(",")) {
+            String[] parts = pair.split("=");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException(String.format("\"%s\" is not a valid property-value pair", pair));
             }
+            String rawKey = parts[0];
+            String rawValue = parts[1];
+            Property<?> key = block.getStateDefinition().getProperty(rawKey);
+            Comparable<?> value = castToIProperty(key).getValue(rawValue)
+                    .orElseThrow(() -> new IllegalArgumentException(String.format(
+                            "\"%s\" is not a valid value for %s on %s",
+                            rawValue, key, block
+                    )));
+            builder.put(key, value);
         }
-
-        return newState;
+        return builder.build();
     }
 
-    /**
-     * Evaluate the target meta value for the specified state. The target meta value is
-     * most often that which is influenced by the variant/color property of the block state.
-     *
-     * @param state The state to check
-     * @return The target meta of the state
-     * @see #normalize(IBlockState)
-     */
-    public static int stateMeta(IBlockState state) {
-        return state.getBlock().getMetaFromState(normalize(state));
-    }
-
-    private static Set<IBlockState> getStates(@Nonnull Block block, @Nullable Integer meta) {
-        return block.getBlockState().getValidStates().stream()
-                .filter(blockstate -> meta == null || stateMeta(blockstate) == meta)
+    private static Set<BlockState> getStates(@Nonnull Block block, @Nonnull Map<Property<?>, ?> properties) {
+        return block.getStateDefinition().getPossibleStates().stream()
+                .filter(blockstate -> properties.entrySet().stream().allMatch(entry ->
+                        blockstate.getValue(entry.getKey()) == entry.getValue()
+                ))
                 .collect(Collectors.toSet());
     }
 
-    private static ImmutableSet<Integer> getStateHashes(Set<IBlockState> blockstates) {
+    private static ImmutableSet<Integer> getStateHashes(Set<BlockState> blockstates) {
         return ImmutableSet.copyOf(
                 blockstates.stream()
-                        .map(IBlockState::hashCode)
+                        .map(BlockState::hashCode)
                         .toArray(Integer[]::new)
         );
     }
 
-    private static ImmutableSet<Integer> getStackHashes(Set<IBlockState> blockstates) {
+    private static ImmutableSet<Integer> getStackHashes(Set<BlockState> blockstates) {
         //noinspection ConstantConditions
         return ImmutableSet.copyOf(
                 blockstates.stream()
-                        .map(state -> new ItemStack(
-                                state.getBlock().getItemDropped(state, new Random(), 0),
-                                state.getBlock().damageDropped(state)
-                        ))
+                        .flatMap(state -> drops(state.getBlock())
+                                .stream()
+                                .map(item -> new ItemStack(item, 1))
+                        )
                         .map(stack -> ((IItemStack) (Object) stack).getBaritoneHash())
                         .toArray(Integer[]::new)
         );
@@ -274,15 +162,11 @@ public final class BlockOptionalMeta {
         return block;
     }
 
-    public Integer getMeta() {
-        return noMeta ? null : meta;
-    }
-
     public boolean matches(@Nonnull Block block) {
         return block == this.block;
     }
 
-    public boolean matches(@Nonnull IBlockState blockstate) {
+    public boolean matches(@Nonnull BlockState blockstate) {
         Block block = blockstate.getBlock();
         return block == this.block && stateHashes.contains(blockstate.hashCode());
     }
@@ -291,28 +175,125 @@ public final class BlockOptionalMeta {
         //noinspection ConstantConditions
         int hash = ((IItemStack) (Object) stack).getBaritoneHash();
 
-        if (noMeta) {
-            hash -= stack.getItemDamage();
-        }
+        hash -= stack.getDamageValue();
 
         return stackHashes.contains(hash);
     }
 
     @Override
     public String toString() {
-        return String.format("BlockOptionalMeta{block=%s,meta=%s}", block, getMeta());
+        return String.format("BlockOptionalMeta{block=%s,properties=%s}", block, propertiesDescription);
     }
 
-    public static IBlockState blockStateFromStack(ItemStack stack) {
-        //noinspection deprecation
-        return Block.getBlockFromItem(stack.getItem()).getStateFromMeta(stack.getMetadata());
-    }
-
-    public IBlockState getAnyBlockState() {
+    public BlockState getAnyBlockState() {
         if (blockstates.size() > 0) {
             return blockstates.iterator().next();
         }
 
         return null;
+    }
+
+    public Set<BlockState> getAllBlockStates() {
+        return blockstates;
+    }
+
+    public Set<Integer> stackHashes() {
+        return stackHashes;
+    }
+
+    private static Method getVanillaServerPack;
+
+    private static VanillaPackResources getVanillaServerPack() {
+        if (getVanillaServerPack == null) {
+            getVanillaServerPack = Arrays.stream(ServerPacksSource.class.getDeclaredMethods()).filter(field -> field.getReturnType() == VanillaPackResources.class).findFirst().orElseThrow();
+            getVanillaServerPack.setAccessible(true);
+        }
+
+        try {
+            return (VanillaPackResources) getVanillaServerPack.invoke(null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public static LootDataManager getManager() {
+        if (lootTables == null) {
+            MultiPackResourceManager resources = new MultiPackResourceManager(PackType.SERVER_DATA, List.of(getVanillaServerPack()));
+            ReloadableResourceManager resourceManager = new ReloadableResourceManager(PackType.SERVER_DATA);
+            lootTables = new LootDataManager();
+            resourceManager.registerReloadListener(lootTables);
+            try {
+                resourceManager.createReload(new ThreadPerTaskExecutor(Thread::new), new ThreadPerTaskExecutor(Thread::new), CompletableFuture.completedFuture(Unit.INSTANCE), resources.listPacks().toList()).done().get();
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+
+        }
+        return lootTables;
+    }
+
+    private static synchronized List<Item> drops(Block b) {
+        return drops.computeIfAbsent(b, block -> {
+            ResourceLocation lootTableLocation = block.getLootTable();
+            if (lootTableLocation == BuiltInLootTables.EMPTY) {
+                return Collections.emptyList();
+            } else {
+                List<Item> items = new ArrayList<>();
+                try {
+
+                    getManager().getLootTable(lootTableLocation).getRandomItemsRaw(
+                            new LootContext.Builder(
+                                    new LootParams.Builder(ServerLevelStub.fastCreate())
+                                            .withParameter(LootContextParams.ORIGIN, Vec3.atLowerCornerOf(BlockPos.ZERO))
+                                            .withParameter(LootContextParams.TOOL, ItemStack.EMPTY)
+                                            .withOptionalParameter(LootContextParams.BLOCK_ENTITY, null)
+                                            .withParameter(LootContextParams.BLOCK_STATE, block.defaultBlockState())
+                                            .create(LootContextParamSets.BLOCK)
+                            ).withOptionalRandomSeed(1L)
+                                    .create(null),
+                            stack -> items.add(stack.getItem())
+                    );
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return items;
+            }
+        });
+    }
+
+    private static class ServerLevelStub extends ServerLevel {
+        private static Minecraft client = Minecraft.getInstance();
+        private static Unsafe unsafe = getUnsafe();
+
+        public ServerLevelStub(MinecraftServer $$0, Executor $$1, LevelStorageSource.LevelStorageAccess $$2, ServerLevelData $$3, ResourceKey<Level> $$4, LevelStem $$5, ChunkProgressListener $$6, boolean $$7, long $$8, List<CustomSpawner> $$9, boolean $$10, @Nullable RandomSequences $$11) {
+            super($$0, $$1, $$2, $$3, $$4, $$5, $$6, $$7, $$8, $$9, $$10, $$11);
+        }
+
+        @Override
+        public FeatureFlagSet enabledFeatures() {
+            assert client.level != null;
+            return client.level.enabledFeatures();
+        }
+
+        public static ServerLevelStub fastCreate() {
+            try {
+                return (ServerLevelStub) unsafe.allocateInstance(ServerLevelStub.class);
+            } catch (InstantiationException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public static Unsafe getUnsafe() {
+            try {
+                Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+                theUnsafe.setAccessible(true);
+                return (Unsafe) theUnsafe.get(null);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 }

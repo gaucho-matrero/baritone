@@ -17,8 +17,8 @@
 
 package baritone.command;
 
+import baritone.Baritone;
 import baritone.api.BaritoneAPI;
-import baritone.api.IBaritone;
 import baritone.api.Settings;
 import baritone.api.command.argument.ICommandArgument;
 import baritone.api.command.exception.CommandNotEnoughArgumentsException;
@@ -27,20 +27,17 @@ import baritone.api.command.helpers.TabCompleteHelper;
 import baritone.api.command.manager.ICommandManager;
 import baritone.api.event.events.ChatEvent;
 import baritone.api.event.events.TabCompleteEvent;
-import baritone.api.event.listener.AbstractGameEventListener;
 import baritone.api.utils.Helper;
 import baritone.api.utils.SettingsUtil;
+import baritone.behavior.Behavior;
 import baritone.command.argument.ArgConsumer;
 import baritone.command.argument.CommandArguments;
 import baritone.command.manager.CommandManager;
 import baritone.utils.accessor.IGuiScreen;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.*;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Tuple;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraft.util.text.event.ClickEvent;
-import net.minecraft.util.text.event.HoverEvent;
-
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -49,14 +46,14 @@ import java.util.stream.Stream;
 
 import static baritone.api.command.IBaritoneChatControl.FORCE_COMMAND_PREFIX;
 
-public class ExampleBaritoneControl implements Helper, AbstractGameEventListener {
+public class ExampleBaritoneControl extends Behavior implements Helper {
 
     private static final Settings settings = BaritoneAPI.getSettings();
     private final ICommandManager manager;
 
-    public ExampleBaritoneControl(IBaritone baritone) {
+    public ExampleBaritoneControl(Baritone baritone) {
+        super(baritone);
         this.manager = baritone.getCommandManager();
-        baritone.getGameEventHandler().registerEventListener(this);
     }
 
     @Override
@@ -68,7 +65,7 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
             event.cancel();
             String commandStr = msg.substring(forceRun ? FORCE_COMMAND_PREFIX.length() : prefix.length());
             if (!runCommand(commandStr) && !commandStr.trim().isEmpty()) {
-                new CommandNotFoundException(CommandManager.expand(commandStr).getFirst()).handle(null, null);
+                new CommandNotFoundException(CommandManager.expand(commandStr).getA()).handle(null, null);
             }
         } else if ((settings.chatControl.value || settings.chatControlAnyway.value) && runCommand(msg)) {
             event.cancel();
@@ -79,17 +76,17 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
         if (settings.echoCommands.value) {
             String msg = command + rest;
             String toDisplay = settings.censorRanCommands.value ? command + " ..." : msg;
-            ITextComponent component = new TextComponentString(String.format("> %s", toDisplay));
-            component.getStyle()
-                    .setColor(TextFormatting.WHITE)
-                    .setHoverEvent(new HoverEvent(
+            MutableComponent component = Component.literal(String.format("> %s", toDisplay));
+            component.setStyle(component.getStyle()
+                    .withColor(ChatFormatting.WHITE)
+                    .withHoverEvent(new HoverEvent(
                             HoverEvent.Action.SHOW_TEXT,
-                            new TextComponentString("Click to rerun command")
+                            Component.literal("Click to rerun command")
                     ))
-                    .setClickEvent(new ClickEvent(
+                    .withClickEvent(new ClickEvent(
                             ClickEvent.Action.RUN_COMMAND,
                             FORCE_COMMAND_PREFIX + msg
-                    ));
+                    )));
             logDirect(component);
         }
     }
@@ -100,7 +97,7 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
             return false;
         } else if (msg.trim().equalsIgnoreCase("orderpizza")) {
             try {
-                ((IGuiScreen) mc.currentScreen).openLink(new URI("https://www.dominos.com/en/pages/order/"));
+                ((IGuiScreen) ctx.minecraft().screen).openLinkInvoker(new URI("https://www.dominos.com/en/pages/order/"));
             } catch (NullPointerException | URISyntaxException ignored) {}
             return false;
         }
@@ -108,9 +105,9 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
             return this.runCommand("help");
         }
         Tuple<String, List<ICommandArgument>> pair = CommandManager.expand(msg);
-        String command = pair.getFirst();
-        String rest = msg.substring(pair.getFirst().length());
-        ArgConsumer argc = new ArgConsumer(this.manager, pair.getSecond());
+        String command = pair.getA();
+        String rest = msg.substring(pair.getA().length());
+        ArgConsumer argc = new ArgConsumer(this.manager, pair.getB());
         if (!argc.hasAny()) {
             Settings.Setting setting = settings.byLowerName.get(command.toLowerCase(Locale.US));
             if (setting != null) {
@@ -124,10 +121,10 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
             }
         } else if (argc.hasExactlyOne()) {
             for (Settings.Setting setting : settings.allSettings) {
-                if (SettingsUtil.javaOnlySetting(setting)) {
+                if (setting.isJavaOnly()) {
                     continue;
                 }
-                if (setting.getName().equalsIgnoreCase(pair.getFirst())) {
+                if (setting.getName().equalsIgnoreCase(pair.getA())) {
                     logRanCommand(command, rest);
                     try {
                         this.manager.execute(String.format("set %s %s", setting.getName(), argc.getString()));
@@ -138,7 +135,7 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
         }
 
         // If the command exists, then handle echoing the input
-        if (this.manager.getCommand(pair.getFirst()) != null) {
+        if (this.manager.getCommand(pair.getA()) != null) {
             logRanCommand(command, rest);
         }
 
@@ -177,7 +174,7 @@ public class ExampleBaritoneControl implements Helper, AbstractGameEventListener
                             .stream();
                 }
                 Settings.Setting setting = settings.byLowerName.get(argc.getString().toLowerCase(Locale.US));
-                if (setting != null && !SettingsUtil.javaOnlySetting(setting)) {
+                if (setting != null && !setting.isJavaOnly()) {
                     if (setting.getValueClass() == Boolean.class) {
                         TabCompleteHelper helper = new TabCompleteHelper();
                         if ((Boolean) setting.value) {

@@ -5,7 +5,8 @@ import baritone.api.event.events.RenderEvent;
 import baritone.api.event.listener.AbstractGameEventListener;
 import baritone.api.selection.ISelection;
 import baritone.utils.IRenderer;
-import net.minecraft.util.math.AxisAlignedBB;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.world.phys.AABB;
 
 public class SelectionRenderer implements IRenderer, AbstractGameEventListener {
 
@@ -18,32 +19,32 @@ public class SelectionRenderer implements IRenderer, AbstractGameEventListener {
         baritone.getGameEventHandler().registerEventListener(this);
     }
 
-    public static void renderSelections(ISelection[] selections) {
+    public static void renderSelections(PoseStack stack, ISelection[] selections) {
         float opacity = settings.selectionOpacity.value;
         boolean ignoreDepth = settings.renderSelectionIgnoreDepth.value;
         float lineWidth = settings.selectionLineWidth.value;
 
-        if (!settings.renderSelection.value) {
+        if (!settings.renderSelection.value || selections.length == 0) {
             return;
         }
 
         IRenderer.startLines(settings.colorSelection.value, opacity, lineWidth, ignoreDepth);
 
         for (ISelection selection : selections) {
-            IRenderer.drawAABB(selection.aabb(), SELECTION_BOX_EXPANSION);
+            IRenderer.emitAABB(stack, selection.aabb(), SELECTION_BOX_EXPANSION);
         }
 
         if (settings.renderSelectionCorners.value) {
             IRenderer.glColor(settings.colorSelectionPos1.value, opacity);
 
             for (ISelection selection : selections) {
-                IRenderer.drawAABB(new AxisAlignedBB(selection.pos1(), selection.pos1().add(1, 1, 1)));
+                IRenderer.emitAABB(stack, new AABB(selection.pos1()));
             }
 
             IRenderer.glColor(settings.colorSelectionPos2.value, opacity);
 
             for (ISelection selection : selections) {
-                IRenderer.drawAABB(new AxisAlignedBB(selection.pos2(), selection.pos2().add(1, 1, 1)));
+                IRenderer.emitAABB(stack, new AABB(selection.pos2()));
             }
         }
 
@@ -52,6 +53,6 @@ public class SelectionRenderer implements IRenderer, AbstractGameEventListener {
 
     @Override
     public void onRenderPass(RenderEvent event) {
-        renderSelections(manager.getSelections());
+        renderSelections(event.getModelViewStack(), manager.getSelections());
     }
 }

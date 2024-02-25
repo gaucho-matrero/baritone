@@ -19,9 +19,6 @@ package baritone.api;
 
 import baritone.api.utils.SettingsUtil;
 
-import java.util.Iterator;
-import java.util.ServiceLoader;
-
 /**
  * Exposes the {@link IBaritoneProvider} instance and the {@link Settings} instance for API usage.
  *
@@ -35,11 +32,13 @@ public final class BaritoneAPI {
 
     static {
         settings = new Settings();
-        SettingsUtil.readAndApply(settings);
+        SettingsUtil.readAndApply(settings, SettingsUtil.SETTINGS_DEFAULT_NAME);
 
-        ServiceLoader<IBaritoneProvider> baritoneLoader = ServiceLoader.load(IBaritoneProvider.class);
-        Iterator<IBaritoneProvider> instances = baritoneLoader.iterator();
-        provider = instances.next();
+        try {
+            provider = (IBaritoneProvider) Class.forName("baritone.BaritoneProvider").newInstance();
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public static IBaritoneProvider getProvider() {

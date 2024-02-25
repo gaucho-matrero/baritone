@@ -17,14 +17,13 @@
 
 package baritone.command.defaults;
 
+import baritone.api.BaritoneAPI;
 import baritone.api.IBaritone;
 import baritone.api.command.Command;
 import baritone.api.command.argument.IArgConsumer;
-import baritone.api.command.datatypes.BlockById;
 import baritone.api.command.datatypes.ForBlockOptionalMeta;
 import baritone.api.command.exception.CommandException;
 import baritone.api.utils.BlockOptionalMeta;
-import baritone.cache.WorldScanner;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,14 +44,18 @@ public class MineCommand extends Command {
         while (args.hasAny()) {
             boms.add(args.getDatatypeFor(ForBlockOptionalMeta.INSTANCE));
         }
-        WorldScanner.INSTANCE.repack(ctx);
+        BaritoneAPI.getProvider().getWorldScanner().repack(ctx);
         logDirect(String.format("Mining %s", boms.toString()));
         baritone.getMineProcess().mine(quantity, boms.toArray(new BlockOptionalMeta[0]));
     }
 
     @Override
-    public Stream<String> tabComplete(String label, IArgConsumer args) {
-        return args.tabCompleteDatatype(BlockById.INSTANCE);
+    public Stream<String> tabComplete(String label, IArgConsumer args) throws CommandException {
+        args.getAsOrDefault(Integer.class, 0);
+        while (args.has(2)) {
+            args.getDatatypeFor(ForBlockOptionalMeta.INSTANCE);
+        }
+        return args.tabCompleteDatatype(ForBlockOptionalMeta.INSTANCE);
     }
 
     @Override
@@ -65,14 +68,12 @@ public class MineCommand extends Command {
         return Arrays.asList(
                 "The mine command allows you to tell Baritone to search for and mine individual blocks.",
                 "",
-                "The specified blocks can be ores (which are commonly cached), or any other block.",
+                "The specified blocks can be ores, or any other block.",
                 "",
                 "Also see the legitMine settings (see #set l legitMine).",
                 "",
                 "Usage:",
-                "> mine diamond_ore - Mines all diamonds it can find.",
-                "> mine redstone_ore lit_redstone_ore - Mines redstone ore.",
-                "> mine log:0 - Mines only oak logs."
+                "> mine diamond_ore - Mines all diamonds it can find."
         );
     }
 }

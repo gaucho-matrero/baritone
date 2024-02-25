@@ -11,7 +11,7 @@ These releases are not always completely up to date with latest features, and ar
 
 Link to the releases page: [Releases](https://github.com/cabaletta/baritone/releases)
 
-v1.2.* is for 1.12.2, v1.3.* is for 1.13.2, v1.4.* is for 1.14.4, v1.5.* is for 1.15.2, v1.6.* is for 1.16.2 or 1.16.4 or 1.16.5 (LOL)
+v1.2.* is for 1.12.2, v1.3.* is for 1.13.2, v1.4.* is for 1.14.4, v1.5.* is for 1.15.2, v1.6.* is for 1.16.5, v1.7.* is for 1.17.1, v1.8.* is for 1.18.1
 
 Any official release will be GPG signed by leijurv (44A3EA646EADAC6A). Please verify that the hash of the file you download is in `checksums.txt` and that `checksums_signed.asc` is a valid signature by that public keys of `checksums.txt`. 
 
@@ -22,15 +22,16 @@ The build is fully deterministic and reproducible, and you can verify Travis did
 
 Building Baritone will result in 5 artifacts created in the ``dist`` directory. These are the same as the artifacts created in the [releases](https://github.com/cabaletta/baritone/releases).
 
-**The Forge release can simply be added as a Forge mod.**
+**The Forge and Fabric releases can simply be added as a Forge/Fabric mods.**
 
 If another one of your Forge mods has a Baritone integration, you want `baritone-api-forge-VERSION.jar`. Otherwise, you want `baritone-standalone-forge-VERSION.jar`
 
 - **API**: Only the non-api packages are obfuscated. This should be used in environments where other mods would like to use Baritone's features.
-- **Forge API**: Same as API, but packaged for Forge. This should be used where another mod has a Baritone integration.
+- **Forge/Fabric API**: Same as API, but packaged for Forge/Fabric. This should be used where another mod has a Baritone integration.
 - **Standalone**: Everything is obfuscated. This should be used in environments where there are no other mods present that would like to use Baritone's features.
-- **Forge Standalone**: Same as Standalone, but packaged for Forge. This should be used when Baritone is your only Forge mod, or none of your other Forge mods integrate with Baritone.
+- **Forge/Fabric Standalone**: Same as Standalone, but packaged for Forge/Fabric. This should be used when Baritone is your only Forge/Fabric mod, or none of your other Forge/Fabric mods integrate with Baritone.
 - **Unoptimized**: Nothing is obfuscated. This shouldn't be used ever in production.
+- **Forge/Fabric Unoptimized**: Same as Unoptimized, but packaged for Forge/Fabric.
 
 ## Build it yourself
 - Clone or download Baritone
@@ -42,13 +43,13 @@ If another one of your Forge mods has a Baritone integration, you want `baritone
 ## Command Line
 On Mac OSX and Linux, use `./gradlew` instead of `gradlew`.
 
-If you have errors with a package missing please make sure you have setup your environment, and are using Oracle JDK 8.
+If you have errors with a package missing please make sure you have setup your environment, and are using Oracle JDK 8 for 1.12.2-1.16.5, JDK 16+ for 1.17.1, and JDK 17+ for 1.18.1.
 
 To check which java you are using do 
 `java -version` in a command prompt or terminal.
-If you are using anything above OpenJDK 8, it might not work because the Java distributions above JDK 8 using may not have the needed javax classes.
+If you are using anything above OpenJDK 8 for 1.12.2-1.16.5, it might not work because the Java distributions above JDK 8 using may not have the needed javax classes.
 
-Open JDK 8 download: https://openjdk.java.net/install/
+Download java: https://adoptium.net/
 #### macOS guide
 In order to get JDK 8, Try running the following command:
 `% /usr/libexec/java_home -V`
@@ -65,62 +66,13 @@ In order to get JDK 8 running in the **current terminal window** you will have t
 
 To add OpenJDK 8 to your PATH add the export line to the end of your `.zshrc / .bashrc` if you want it to apply to each new terminal. If you're using bash change the .bachrc and if you're using zsh change the .zshrc
 
-Setting up the Environment:
+### Building Baritone
 
-```
-$ gradlew setupDecompWorkspace
-$ gradlew --refresh-dependencies
-```
+These tasks depend on the minecraft version, but are (for the most part) standard for building mods.
 
-Building Baritone: 
-
-```
-$ gradlew build
-```
-
-For minecraft 1.15.2+, run the following instead to include the Forge jars:
-
-```
-$ gradlew build -Pbaritone.forge_build
-```
-
-Running Baritone:
-
-```
-$ gradlew runClient
-```
-
-For information on how to build baritone, see [Building Baritone](#building-baritone)
+for more details, see [the build ci action](/.github/workflows/gradle_build.yml)
 
 ## IntelliJ
 - Open the project in IntelliJ as a Gradle project
-  
-  ![Image](https://i.imgur.com/jw7Q6vY.png)
-
-- Run the Gradle tasks `setupDecompWorkspace` then `genIntellijRuns`
-  
-  ![Image](https://i.imgur.com/QEfVvWP.png)
-
 - Refresh the Gradle project (or, to be safe, just restart IntelliJ)
-  
-  ![Image](https://i.imgur.com/3V7EdWr.png)
-
-- Select the "Minecraft Client" launch config
-  
-  ![Image](https://i.imgur.com/1qz2QGV.png)
-
-- Click on ``Edit Configurations...`` from the same dropdown and select the "Minecraft Client" config
-  
-  ![Image](https://i.imgur.com/s4ly0ZF.png)
-
-- In `Edit Configurations...` you need to select `baritone_launch` for `Use classpath of module:`.
-  
-  ![Image](https://i.imgur.com/hrLhG9u.png)
-
-## IntelliJ
-
-- Navigate to the gradle tasks on the right tab as follows
-
-  ![Image](https://i.imgur.com/PE6r9iN.png)
-
-- Double click on **build** to run it
+- depending on the minecraft version, you may need to run `setupDecompWorkspace` or `genIntellijRuns` in order to get everything working

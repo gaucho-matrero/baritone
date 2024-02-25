@@ -19,29 +19,30 @@ package baritone.utils;
 
 import baritone.api.BaritoneAPI;
 import baritone.api.event.events.RenderEvent;
-import baritone.api.pathing.calc.IPath;
 import baritone.api.pathing.goals.*;
 import baritone.api.utils.BetterBlockPos;
-import baritone.api.utils.Helper;
+import baritone.api.utils.IPlayerContext;
 import baritone.api.utils.interfaces.IGoalRenderPos;
 import baritone.behavior.PathingBehavior;
 import baritone.pathing.path.PathExecutor;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.tileentity.TileEntityBeaconRenderer;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.entity.Entity;
-import net.minecraft.init.Blocks;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.blockentity.BeaconRenderer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.awt.*;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-
-import static org.lwjgl.opengl.GL11.*;
 
 /**
  * @author Brady
@@ -49,34 +50,45 @@ import static org.lwjgl.opengl.GL11.*;
  */
 public final class PathRenderer implements IRenderer {
 
+    private static final ResourceLocation TEXTURE_BEACON_BEAM = new ResourceLocation("textures/entity/beacon_beam.png");
+
+
     private PathRenderer() {}
 
+    public static double posX() {
+        return renderManager.renderPosX();
+    }
+
+    public static double posY() {
+        return renderManager.renderPosY();
+    }
+
+    public static double posZ() {
+        return renderManager.renderPosZ();
+    }
+
     public static void render(RenderEvent event, PathingBehavior behavior) {
-        float partialTicks = event.getPartialTicks();
-        Goal goal = behavior.getGoal();
-        if (Helper.mc.currentScreen instanceof GuiClick) {
-            ((GuiClick) Helper.mc.currentScreen).onRender();
+        final IPlayerContext ctx = behavior.ctx;
+        if (ctx.world() == null) {
+            return;
+        }
+        if (ctx.minecraft().screen instanceof GuiClick) {
+            ((GuiClick) ctx.minecraft().screen).onRender(event.getModelViewStack(), event.getProjectionMatrix());
         }
 
-        int thisPlayerDimension = behavior.baritone.getPlayerContext().world().provider.getDimensionType().getId();
-        int currentRenderViewDimension = BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext().world().provider.getDimensionType().getId();
+        final float partialTicks = event.getPartialTicks();
+        final Goal goal = behavior.getGoal();
+
+        final DimensionType thisPlayerDimension = ctx.world().dimensionType();
+        final DimensionType currentRenderViewDimension = BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext().world().dimensionType();
 
         if (thisPlayerDimension != currentRenderViewDimension) {
             // this is a path for a bot in a different dimension, don't render it
             return;
         }
 
-        Entity renderView = Helper.mc.getRenderViewEntity();
-
-        if (renderView.world != BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext().world()) {
-            System.out.println("I have no idea what's going on");
-            System.out.println("The primary baritone is in a different world than the render view entity");
-            System.out.println("Not rendering the path");
-            return;
-        }
-
         if (goal != null && settings.renderGoal.value) {
-            drawDankLitGoalBox(renderView, goal, partialTicks, settings.colorGoalBox.value);
+            drawGoal(event.getModelViewStack(), ctx, goal, partialTicks, settings.colorGoalBox.value);
         }
 
         if (!settings.renderPath.value) {
@@ -86,9 +98,9 @@ public final class PathRenderer implements IRenderer {
         PathExecutor current = behavior.getCurrent(); // this should prevent most race conditions?
         PathExecutor next = behavior.getNext(); // like, now it's not possible for current!=null to be true, then suddenly false because of another thread
         if (current != null && settings.renderSelectionBoxes.value) {
-            drawManySelectionBoxes(renderView, current.toBreak(), settings.colorBlocksToBreak.value);
-            drawManySelectionBoxes(renderView, current.toPlace(), settings.colorBlocksToPlace.value);
-            drawManySelectionBoxes(renderView, current.toWalkInto(), settings.colorBlocksToWalkInto.value);
+            drawManySelectionBoxes(event.getModelViewStack(), ctx.player(), current.toBreak(), settings.colorBlocksToBreak.value);
+            drawManySelectionBoxes(event.getModelViewStack(), ctx.player(), current.toPlace(), settings.colorBlocksToPlace.value);
+            drawManySelectionBoxes(event.getModelViewStack(), ctx.player(), current.toWalkInto(), settings.colorBlocksToWalkInto.value);
         }
 
         //drawManySelectionBoxes(player, Collections.singletonList(behavior.pathStart()), partialTicks, Color.WHITE);
@@ -96,33 +108,36 @@ public final class PathRenderer implements IRenderer {
         // Render the current path, if there is one
         if (current != null && current.getPath() != null) {
             int renderBegin = Math.max(current.getPosition() - 3, 0);
-            drawPath(current.getPath(), renderBegin, settings.colorCurrentPath.value, settings.fadePath.value, 10, 20);
+            drawPath(event.getModelViewStack(), current.getPath().positions(), renderBegin, settings.colorCurrentPath.value, settings.fadePath.value, 10, 20);
         }
 
         if (next != null && next.getPath() != null) {
-            drawPath(next.getPath(), 0, settings.colorNextPath.value, settings.fadePath.value, 10, 20);
+            drawPath(event.getModelViewStack(), next.getPath().positions(), 0, settings.colorNextPath.value, settings.fadePath.value, 10, 20);
         }
 
         // If there is a path calculation currently running, render the path calculation process
         behavior.getInProgress().ifPresent(currentlyRunning -> {
             currentlyRunning.bestPathSoFar().ifPresent(p -> {
-                drawPath(p, 0, settings.colorBestPathSoFar.value, settings.fadePath.value, 10, 20);
+                drawPath(event.getModelViewStack(), p.positions(), 0, settings.colorBestPathSoFar.value, settings.fadePath.value, 10, 20);
             });
 
             currentlyRunning.pathToMostRecentNodeConsidered().ifPresent(mr -> {
-                drawPath(mr, 0, settings.colorMostRecentConsidered.value, settings.fadePath.value, 10, 20);
-                drawManySelectionBoxes(renderView, Collections.singletonList(mr.getDest()), settings.colorMostRecentConsidered.value);
+                drawPath(event.getModelViewStack(), mr.positions(), 0, settings.colorMostRecentConsidered.value, settings.fadePath.value, 10, 20);
+                drawManySelectionBoxes(event.getModelViewStack(), ctx.player(), Collections.singletonList(mr.getDest()), settings.colorMostRecentConsidered.value);
             });
         });
     }
 
-    public static void drawPath(IPath path, int startIndex, Color color, boolean fadeOut, int fadeStart0, int fadeEnd0) {
+    public static void drawPath(PoseStack stack, List<BetterBlockPos> positions, int startIndex, Color color, boolean fadeOut, int fadeStart0, int fadeEnd0) {
+        drawPath(stack, positions, startIndex, color, fadeOut, fadeStart0, fadeEnd0, 0.5D);
+    }
+
+    public static void drawPath(PoseStack stack, List<BetterBlockPos> positions, int startIndex, Color color, boolean fadeOut, int fadeStart0, int fadeEnd0, double offset) {
         IRenderer.startLines(color, settings.pathRenderLineWidthPixels.value, settings.renderPathIgnoreDepth.value);
 
         int fadeStart = fadeStart0 + startIndex;
         int fadeEnd = fadeEnd0 + startIndex;
 
-        List<BetterBlockPos> positions = path.positions();
         for (int i = startIndex, next; i < positions.size() - 1; i = next) {
             BetterBlockPos start = positions.get(i);
             BetterBlockPos end = positions.get(next = i + 1);
@@ -149,61 +164,68 @@ public final class PathRenderer implements IRenderer {
                     }
                     alpha = 0.4F * (1.0F - (float) (i - fadeStart) / (float) (fadeEnd - fadeStart));
                 }
-
                 IRenderer.glColor(color, alpha);
             }
 
-            drawLine(start.x, start.y, start.z, end.x, end.y, end.z);
-
-            tessellator.draw();
+            emitPathLine(stack, start.x, start.y, start.z, end.x, end.y, end.z, offset);
         }
 
         IRenderer.endLines(settings.renderPathIgnoreDepth.value);
     }
 
-    public static void drawLine(double x1, double y1, double z1, double x2, double y2, double z2) {
-        double vpX = renderManager.viewerPosX;
-        double vpY = renderManager.viewerPosY;
-        double vpZ = renderManager.viewerPosZ;
+    private static void emitPathLine(PoseStack stack, double x1, double y1, double z1, double x2, double y2, double z2, double offset) {
+        final double extraOffset = offset + 0.03D;
+
+        double vpX = posX();
+        double vpY = posY();
+        double vpZ = posZ();
         boolean renderPathAsFrickinThingy = !settings.renderPathAsLine.value;
 
-        buffer.begin(renderPathAsFrickinThingy ? GL_LINE_STRIP : GL_LINES, DefaultVertexFormats.POSITION);
-        buffer.pos(x1 + 0.5D - vpX, y1 + 0.5D - vpY, z1 + 0.5D - vpZ).endVertex();
-        buffer.pos(x2 + 0.5D - vpX, y2 + 0.5D - vpY, z2 + 0.5D - vpZ).endVertex();
-
+        IRenderer.emitLine(stack,
+                x1 + offset - vpX, y1 + offset - vpY, z1 + offset - vpZ,
+                x2 + offset - vpX, y2 + offset - vpY, z2 + offset - vpZ
+        );
         if (renderPathAsFrickinThingy) {
-            buffer.pos(x2 + 0.5D - vpX, y2 + 0.53D - vpY, z2 + 0.5D - vpZ).endVertex();
-            buffer.pos(x1 + 0.5D - vpX, y1 + 0.53D - vpY, z1 + 0.5D - vpZ).endVertex();
-            buffer.pos(x1 + 0.5D - vpX, y1 + 0.5D - vpY, z1 + 0.5D - vpZ).endVertex();
+            IRenderer.emitLine(stack,
+                    x2 + offset - vpX, y2 + offset - vpY, z2 + offset - vpZ,
+                    x2 + offset - vpX, y2 + extraOffset - vpY, z2 + offset - vpZ
+            );
+            IRenderer.emitLine(stack,
+                    x2 + offset - vpX, y2 + extraOffset - vpY, z2 + offset - vpZ,
+                    x1 + offset - vpX, y1 + extraOffset - vpY, z1 + offset - vpZ
+            );
+            IRenderer.emitLine(stack,
+                    x1 + offset - vpX, y1 + extraOffset - vpY, z1 + offset - vpZ,
+                    x1 + offset - vpX, y1 + offset - vpY, z1 + offset - vpZ
+            );
         }
     }
 
-    public static void drawManySelectionBoxes(Entity player, Collection<BlockPos> positions, Color color) {
+    public static void drawManySelectionBoxes(PoseStack stack, Entity player, Collection<BlockPos> positions, Color color) {
         IRenderer.startLines(color, settings.pathRenderLineWidthPixels.value, settings.renderSelectionBoxesIgnoreDepth.value);
 
         //BlockPos blockpos = movingObjectPositionIn.getBlockPos();
         BlockStateInterface bsi = new BlockStateInterface(BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext()); // TODO this assumes same dimension between primary baritone and render view? is this safe?
 
         positions.forEach(pos -> {
-            IBlockState state = bsi.get0(pos);
-            AxisAlignedBB toDraw;
-
-            if (state.getBlock().equals(Blocks.AIR)) {
-                toDraw = Blocks.DIRT.getDefaultState().getSelectedBoundingBox(player.world, pos);
-            } else {
-                toDraw = state.getSelectedBoundingBox(player.world, pos);
-            }
-
-            IRenderer.drawAABB(toDraw, .002D);
+            BlockState state = bsi.get0(pos);
+            VoxelShape shape = state.getShape(player.level(), pos);
+            AABB toDraw = shape.isEmpty() ? Shapes.block().bounds() : shape.bounds();
+            toDraw = toDraw.move(pos);
+            IRenderer.emitAABB(stack, toDraw, .002D);
         });
 
         IRenderer.endLines(settings.renderSelectionBoxesIgnoreDepth.value);
     }
 
-    public static void drawDankLitGoalBox(Entity player, Goal goal, float partialTicks, Color color) {
-        double renderPosX = renderManager.viewerPosX;
-        double renderPosY = renderManager.viewerPosY;
-        double renderPosZ = renderManager.viewerPosZ;
+    public static void drawGoal(PoseStack stack, IPlayerContext ctx, Goal goal, float partialTicks, Color color) {
+        drawGoal(stack, ctx, goal, partialTicks, color, true);
+    }
+
+    private static void drawGoal(PoseStack stack, IPlayerContext ctx, Goal goal, float partialTicks, Color color, boolean setupRender) {
+        double renderPosX = posX();
+        double renderPosY = posY();
+        double renderPosZ = posZ();
         double minX, maxX;
         double minZ, maxZ;
         double minY, maxY;
@@ -211,9 +233,8 @@ public final class PathRenderer implements IRenderer {
         if (!settings.renderGoalAnimated.value) {
             // y = 1 causes rendering issues when the player is at the same y as the top of a block for some reason
             y = 0.999F;
-        }
-        else {
-            y = MathHelper.cos((float) (((float) ((System.nanoTime() / 100000L) % 20000L)) / 20000F * Math.PI * 2));
+        } else {
+            y = Mth.cos((float) (((float) ((System.nanoTime() / 100000L) % 20000L)) / 20000F * Math.PI * 2));
         }
         if (goal instanceof IGoalRenderPos) {
             BlockPos goalPos = ((IGoalRenderPos) goal).getGoalPos();
@@ -233,35 +254,44 @@ public final class PathRenderer implements IRenderer {
                 y2 -= 0.5;
                 maxY--;
             }
+            drawDankLitGoalBox(stack, color, minX, maxX, minZ, maxZ, minY, maxY, y1, y2, setupRender);
         } else if (goal instanceof GoalXZ) {
             GoalXZ goalPos = (GoalXZ) goal;
+            minY = ctx.world().getMinBuildHeight();
+            maxY = ctx.world().getMaxBuildHeight();
 
             if (settings.renderGoalXZBeacon.value) {
-                glPushAttrib(GL_LIGHTING_BIT);
-
-                Helper.mc.getTextureManager().bindTexture(TileEntityBeaconRenderer.TEXTURE_BEACON_BEAM);
-
+                //TODO: check
+                textureManager.bindForSetup(TEXTURE_BEACON_BEAM);
                 if (settings.renderGoalIgnoreDepth.value) {
-                    GlStateManager.disableDepth();
+                    RenderSystem.disableDepthTest();
                 }
 
-                TileEntityBeaconRenderer.renderBeamSegment(
-                        goalPos.getX() - renderPosX,
-                        -renderPosY,
-                        goalPos.getZ() - renderPosZ,
+                stack.pushPose(); // push
+                stack.translate(goalPos.getX() - renderPosX, -renderPosY, goalPos.getZ() - renderPosZ); // translate
+
+                //TODO: check
+                BeaconRenderer.renderBeaconBeam(
+                        stack,
+                        ctx.minecraft().renderBuffers().bufferSource(),
+                        TEXTURE_BEACON_BEAM,
                         settings.renderGoalAnimated.value ? partialTicks : 0,
-                        1.0,
-                        settings.renderGoalAnimated.value ? player.world.getTotalWorldTime() : 0,
-                        0,
-                        256,
-                        color.getColorComponents(null)
+                        1.0F,
+                        settings.renderGoalAnimated.value ? ctx.world().getGameTime() : 0,
+                        (int) minY,
+                        (int) maxY,
+                        color.getColorComponents(null),
+
+                        // Arguments filled by the private method lol
+                        0.2F,
+                        0.25F
                 );
 
-                if (settings.renderGoalIgnoreDepth.value) {
-                    GlStateManager.enableDepth();
-                }
+                stack.popPose(); // pop
 
-                glPopAttrib();
+                if (settings.renderGoalIgnoreDepth.value) {
+                    RenderSystem.enableDepthTest();
+                }
                 return;
             }
 
@@ -272,57 +302,65 @@ public final class PathRenderer implements IRenderer {
 
             y1 = 0;
             y2 = 0;
-            minY = 0 - renderPosY;
-            maxY = 256 - renderPosY;
+            minY -= renderPosY;
+            maxY -= renderPosY;
+            drawDankLitGoalBox(stack, color, minX, maxX, minZ, maxZ, minY, maxY, y1, y2, setupRender);
         } else if (goal instanceof GoalComposite) {
-            for (Goal g : ((GoalComposite) goal).goals()) {
-                drawDankLitGoalBox(player, g, partialTicks, color);
+            // Simple way to determine if goals can be batched, without having some sort of GoalRenderer
+            boolean batch = Arrays.stream(((GoalComposite) goal).goals()).allMatch(IGoalRenderPos.class::isInstance);
+
+            if (batch) {
+                IRenderer.startLines(color, settings.goalRenderLineWidthPixels.value, settings.renderGoalIgnoreDepth.value);
             }
-            return;
+            for (Goal g : ((GoalComposite) goal).goals()) {
+                drawGoal(stack, ctx, g, partialTicks, color, !batch);
+            }
+            if (batch) {
+                IRenderer.endLines(settings.renderGoalIgnoreDepth.value);
+            }
         } else if (goal instanceof GoalInverted) {
-            drawDankLitGoalBox(player, ((GoalInverted) goal).origin, partialTicks, settings.colorInvertedGoalBox.value);
-            return;
+            drawGoal(stack, ctx, ((GoalInverted) goal).origin, partialTicks, settings.colorInvertedGoalBox.value);
         } else if (goal instanceof GoalYLevel) {
             GoalYLevel goalpos = (GoalYLevel) goal;
-            minX = player.posX - settings.yLevelBoxSize.value - renderPosX;
-            minZ = player.posZ - settings.yLevelBoxSize.value - renderPosZ;
-            maxX = player.posX + settings.yLevelBoxSize.value - renderPosX;
-            maxZ = player.posZ + settings.yLevelBoxSize.value - renderPosZ;
+            minX = ctx.player().position().x - settings.yLevelBoxSize.value - renderPosX;
+            minZ = ctx.player().position().z - settings.yLevelBoxSize.value - renderPosZ;
+            maxX = ctx.player().position().x + settings.yLevelBoxSize.value - renderPosX;
+            maxZ = ctx.player().position().z + settings.yLevelBoxSize.value - renderPosZ;
             minY = ((GoalYLevel) goal).level - renderPosY;
             maxY = minY + 2;
             y1 = 1 + y + goalpos.level - renderPosY;
             y2 = 1 - y + goalpos.level - renderPosY;
-        } else {
-            return;
+            drawDankLitGoalBox(stack, color, minX, maxX, minZ, maxZ, minY, maxY, y1, y2, setupRender);
         }
-
-        IRenderer.startLines(color, settings.goalRenderLineWidthPixels.value, settings.renderGoalIgnoreDepth.value);
-
-        renderHorizontalQuad(minX, maxX, minZ, maxZ, y1);
-        renderHorizontalQuad(minX, maxX, minZ, maxZ, y2);
-
-        buffer.begin(GL_LINES, DefaultVertexFormats.POSITION);
-        buffer.pos(minX, minY, minZ).endVertex();
-        buffer.pos(minX, maxY, minZ).endVertex();
-        buffer.pos(maxX, minY, minZ).endVertex();
-        buffer.pos(maxX, maxY, minZ).endVertex();
-        buffer.pos(maxX, minY, maxZ).endVertex();
-        buffer.pos(maxX, maxY, maxZ).endVertex();
-        buffer.pos(minX, minY, maxZ).endVertex();
-        buffer.pos(minX, maxY, maxZ).endVertex();
-        tessellator.draw();
-
-        IRenderer.endLines(settings.renderGoalIgnoreDepth.value);
     }
 
-    private static void renderHorizontalQuad(double minX, double maxX, double minZ, double maxZ, double y) {
+    private static void drawDankLitGoalBox(PoseStack stack, Color colorIn, double minX, double maxX, double minZ, double maxZ, double minY, double maxY, double y1, double y2, boolean setupRender) {
+        if (setupRender) {
+            IRenderer.startLines(colorIn, settings.goalRenderLineWidthPixels.value, settings.renderGoalIgnoreDepth.value);
+        }
+
+        renderHorizontalQuad(stack, minX, maxX, minZ, maxZ, y1);
+        renderHorizontalQuad(stack, minX, maxX, minZ, maxZ, y2);
+
+        for (double y = minY; y < maxY; y += 16) {
+            double max = Math.min(maxY, y + 16);
+            IRenderer.emitLine(stack, minX, y, minZ, minX, max, minZ, 0.0, 1.0, 0.0);
+            IRenderer.emitLine(stack, maxX, y, minZ, maxX, max, minZ, 0.0, 1.0, 0.0);
+            IRenderer.emitLine(stack, maxX, y, maxZ, maxX, max, maxZ, 0.0, 1.0, 0.0);
+            IRenderer.emitLine(stack, minX, y, maxZ, minX, max, maxZ, 0.0, 1.0, 0.0);
+        }
+
+        if (setupRender) {
+            IRenderer.endLines(settings.renderGoalIgnoreDepth.value);
+        }
+    }
+
+    private static void renderHorizontalQuad(PoseStack stack, double minX, double maxX, double minZ, double maxZ, double y) {
         if (y != 0) {
-            buffer.begin(GL_LINE_LOOP, DefaultVertexFormats.POSITION);
-            buffer.pos(minX, y, minZ).endVertex();
-            buffer.pos(maxX, y, minZ).endVertex();
-            buffer.pos(maxX, y, maxZ).endVertex();
-            buffer.pos(minX, y, maxZ).endVertex();
-            tessellator.draw();
+            IRenderer.emitLine(stack, minX, y, minZ, maxX, y, minZ, 1.0, 0.0, 0.0);
+            IRenderer.emitLine(stack, maxX, y, minZ, maxX, y, maxZ, 0.0, 0.0, 1.0);
+            IRenderer.emitLine(stack, maxX, y, maxZ, minX, y, maxZ, -1.0, 0.0, 0.0);
+            IRenderer.emitLine(stack, minX, y, maxZ, minX, y, minZ, 0.0, 0.0, -1.0);
         }
     }
 }

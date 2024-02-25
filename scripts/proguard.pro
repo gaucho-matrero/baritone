@@ -1,5 +1,11 @@
+# Meteor
+-keep class *
+
+
+
 -keepattributes Signature
 -keepattributes *Annotation*
+-keepattributes InnerClasses
 
 -optimizationpasses 5
 -verbose
@@ -14,7 +20,14 @@
 
 # lwjgl is weird
 -dontwarn org.lwjgl.**
+# also lwjgl lol
+-dontwarn module-info
+# we dont have forge
+-dontwarn baritone.launch.BaritoneForgeModXD
+# progard doesn't like signature polymorphism
+-dontwarn java.lang.invoke.MethodHandle
 
+# please do not change the comment below
 -keep class baritone.api.** { *; } # this is the keep api
 
 # service provider needs these class names
@@ -22,6 +35,7 @@
 -keep class baritone.api.IBaritoneProvider
 
 -keep class baritone.api.utils.MyChunkPos { *; } # even in standalone we need to keep this for gson reflect
+-keepname class baritone.api.utils.BlockOptionalMeta # this name is exposed to the user, so we need to keep it in all builds
 
 # Keep any class or member annotated with @KeepName so we dont have to put everything in the script
 -keep,allowobfuscation @interface baritone.KeepName
@@ -40,58 +54,10 @@
 
 #try to keep usage of schematica in separate classes
 -keep class baritone.utils.schematic.schematica.**
+-keep class baritone.utils.schematic.litematica.**
 #proguard doesnt like it when it cant find our fake schematica classes
 -dontwarn baritone.utils.schematic.schematica.**
-
-# copy all necessary libraries into tempLibraries to build
-
-# The correct jar will be copied from the forgegradle cache based on the mapping type being compiled with
--libraryjars 'tempLibraries/minecraft.jar'
-
--libraryjars 'tempLibraries/SimpleTweaker-1.2.jar'
-
--libraryjars 'tempLibraries/authlib-1.5.25.jar'
--libraryjars 'tempLibraries/codecjorbis-20101023.jar'
--libraryjars 'tempLibraries/codecwav-20101023.jar'
--libraryjars 'tempLibraries/commons-codec-1.10.jar'
--libraryjars 'tempLibraries/commons-compress-1.8.1.jar'
--libraryjars 'tempLibraries/commons-io-2.5.jar'
--libraryjars 'tempLibraries/commons-lang3-3.5.jar'
--libraryjars 'tempLibraries/commons-logging-1.1.3.jar'
--libraryjars 'tempLibraries/fastutil-7.1.0.jar'
--libraryjars 'tempLibraries/gson-2.8.0.jar'
--libraryjars 'tempLibraries/guava-21.0.jar'
--libraryjars 'tempLibraries/httpclient-4.3.3.jar'
--libraryjars 'tempLibraries/httpcore-4.3.2.jar'
--libraryjars 'tempLibraries/icu4j-core-mojang-51.2.jar'
--libraryjars 'tempLibraries/jinput-2.0.5.jar'
--libraryjars 'tempLibraries/jna-4.4.0.jar'
--libraryjars 'tempLibraries/jopt-simple-5.0.3.jar'
--libraryjars 'tempLibraries/jsr305-3.0.1.jar'
--libraryjars 'tempLibraries/jutils-1.0.0.jar'
--libraryjars 'tempLibraries/libraryjavasound-20101123.jar'
--libraryjars 'tempLibraries/librarylwjglopenal-20100824.jar'
--libraryjars 'tempLibraries/log4j-api-2.8.1.jar'
--libraryjars 'tempLibraries/log4j-core-2.8.1.jar'
-
-# startsWith is used to check the library, and mac/linux differ in which version they use
-# this is FINE
--libraryjars 'tempLibraries/lwjgl-.jar'
--libraryjars 'tempLibraries/lwjgl_util-.jar'
-
--libraryjars 'tempLibraries/netty-all-4.1.9.Final.jar'
--libraryjars 'tempLibraries/oshi-core-1.1.jar'
--libraryjars 'tempLibraries/patchy-1.3.9.jar'
--libraryjars 'tempLibraries/platform-3.4.0.jar'
--libraryjars 'tempLibraries/realms-1.10.22.jar'
--libraryjars 'tempLibraries/soundsystem-20120107.jar'
--libraryjars 'tempLibraries/text2speech-1.10.3.jar'
-
--libraryjars 'tempLibraries/mixin-0.7.11-SNAPSHOT.jar'
--libraryjars 'tempLibraries/launchwrapper-1.11.jar' # TODO why does only 1.11.jar exist?
-
-
-
+-dontwarn baritone.utils.schematic.litematica.**
 
 # Keep - Applications. Keep all application classes, along with their 'main'
 # methods.
@@ -381,5 +347,3 @@
     public java.lang.String substring(int);
     public java.lang.String substring(int,int);
 }
-
--printmapping mapping.txt

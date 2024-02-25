@@ -26,16 +26,19 @@ public class Rotation {
     /**
      * The yaw angle of this Rotation
      */
-    private float yaw;
+    private final float yaw;
 
     /**
      * The pitch angle of this Rotation
      */
-    private float pitch;
+    private final float pitch;
 
     public Rotation(float yaw, float pitch) {
         this.yaw = yaw;
         this.pitch = pitch;
+        if (Float.isInfinite(yaw) || Float.isNaN(yaw) || Float.isInfinite(pitch) || Float.isNaN(pitch)) {
+            throw new IllegalStateException(yaw + " " + pitch);
+        }
     }
 
     /**
@@ -108,6 +111,10 @@ public class Rotation {
                 normalizeYaw(this.yaw),
                 clampPitch(this.pitch)
         );
+    }
+
+    public Rotation withPitch(float pitch) {
+        return new Rotation(this.yaw, pitch);
     }
 
     /**
